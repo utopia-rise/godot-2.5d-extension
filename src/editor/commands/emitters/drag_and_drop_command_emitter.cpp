@@ -1,84 +1,66 @@
 #ifdef TOOLS_ENABLED
+
 #include "drag_and_drop_command_emitter.h"
 
-#include "data/isometric_parameters.h"
+#include "editor/commands/add_positionable_command.h"
+#include "editor/editor_utils.h"
 #include "editor/isometric_editor_plugin.h"
-#include "isometric_server.h"
-#include "utils/isometric_maths.h"
 
+#include <classes/input.hpp>
+
+using namespace godot;
 using namespace editor::commands::emitters;
 
-Vector<Ref<editor::commands::Command<node::IsometricMap>>> DragAndDropCommandEmitter::from_gui_input_to_command_impl([[maybe_unused]] Ref<InputEventMouse> p_event
-) {// NOLINT(performance-unnecessary-value-param)
-    Vector<Ref<editor::commands::Command<node::IsometricMap>>> commands;
-    bool is_activated {initial_position != Vector3(-1, -1, -1)};
+static bool is_aabb_free_and_editable(node::IsometricMap* map, const AABB& aabb) {
+    return map->is_aabb_in_map(aabb) && !map->is_overlapping(aabb)
+        && editor::IsometricEditorPlugin::get_instance()->is_aabb_in_view_limiters(aabb);
+}
 
-    int selected_tile_id {editor::IsometricEditorPlugin::get_instance()->get_selection_pane()->get_selected_positionable_id()};
+Vector<Ref<editor::commands::Command>> DragAndDropCommandEmitter::from_gui_input_to_command([[maybe_unused]] const Ref<InputEventMouse>& p_event) {
+    Vector<Ref<Command>> commands;
+    bool is_activated = initial_position != Vector3(-1, -1, -1);
 
+    IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
+    int selected_tile_id = isometric_editor_plugin->get_selection_pane()->get_selected_positionable_id();
     if (selected_tile_id == resource::PositionableSet::NONE_POSITIONABLE_ID) { return commands; }
 
-    IsometricEditorPlugin* isometric_editor_plugin {IsometricEditorPlugin::get_instance()};
-    node::IsometricMap* map {isometric_editor_plugin->get_selected_map()};
-
-    const data::IsometricParameters* parameters {IsometricServer::get_instance()->space_get_configuration(map->get_space_RID())};
-
-    EditorPlane& editor_plane = isometric_editor_plugin->get_editor_plane_for_map(map, EditorPlane::PlaneType::EDITOR_DRAWER);
-    Vector3::Axis editor_plane_axis = editor_plane.get_axis();
-    const Vector3& mouse_position {utils::from_screen_to_3D(
-      *parameters,
-      map->get_local_mouse_position(),
-      editor_plane_axis,
-      static_cast<float>(editor_plane.get_position())
-    )};
+    node::IsometricMap* map = isometric_editor_plugin->get_selected_map();
+    Vector3 mouse_position = isometric_editor_plugin->get_mouse_position_3d();
 
     Vector3 positionable_size;
-    if (auto* positionable {Object::cast_to<node::IsometricPositionable>(
-          map->get_positionable_set()->get_positionable_scene_for_id(selected_tile_id)->instantiate()
-        )}) {
-        positionable_size = positionable->get_size();
-        memdelete(positionable);
-    } else {
+    if (!EditorUtils::get_positionable_size(map->get_positionable_set(), selected_tile_id, positionable_size)) {
         return commands;
     }
 
-    if (Input::get_singleton()->is_mouse_button_pressed(MouseButton::LEFT)) {
+    if (Input::get_singleton()->is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) {
         if (is_activated) {
-            AABB real_aabb {_calculate_real_aabb(initial_position, mouse_position, positionable_size)};
-            if (!map->is_aabb_in_map(real_aabb) || map->is_overlapping(real_aabb) || !isometric_editor_plugin->is_aabb_in_view_limiters(real_aabb)) {
+            if (!is_aabb_free_and_editable(map, _calculate_real_aabb(initial_position, mouse_position, positionable_size))) {
                 return commands;
             }
-
             limit_position = mouse_position;
         } else {
-            AABB real_aabb {_calculate_real_aabb(mouse_position, mouse_position, positionable_size)};
-            if (!map->is_aabb_in_map(real_aabb) || map->is_overlapping(real_aabb) || !isometric_editor_plugin->is_aabb_in_view_limiters(real_aabb)) {
+            if (!is_aabb_free_and_editable(map, _calculate_real_aabb(mouse_position, mouse_position, positionable_size))) {
                 return commands;
             }
-
             initial_position = mouse_position;
             limit_position = mouse_position;
         }
 
-        Vector<Vector3> all_positions {_calculate_positionables_positions(initial_position, limit_position, positionable_size)};
+        Vector<Vector3> all_positions = _calculate_positionables_positions(initial_position, limit_position, positionable_size);
+        int64_t new_size = all_positions.size();
 
-        int new_size = all_positions.size();
-
-        // Shrink, remove and delete excess nodes.
+        // Excess preview nodes are deleted, the others are detached to be reused.
         _clear_current_preview_nodes(new_size);
 
-        // Existing nodes are reused.
-        for (int i = 0; i < current_preview_nodes.size(); ++i) {
-            node::IsometricPositionable* preview_positionable {current_preview_nodes[i]};
-            preview_positionable->set_modulate(Color(1, 1, 1, 0.5));
+        for (int64_t i = 0; i < current_preview_nodes.size(); ++i) {
+            node::IsometricPositionable* preview_positionable = current_preview_nodes[i];
             preview_positionable->set_local_position_3d(all_positions[i]);
             map->add_child(preview_positionable);
         }
 
-        // New nodes are added if the size grew.
-        for (int i = current_preview_nodes.size(); i < new_size; ++i) {
-            node::IsometricPositionable* preview_positionable {Object::cast_to<node::IsometricPositionable>(
-              map->get_positionable_set()->get_positionable_scene_for_id(selected_tile_id)->instantiate()
-            )};
+        Ref<PackedScene> scene = map->get_positionable_set()->get_positionable_scene_for_id(selected_tile_id);
+        for (int64_t i = current_preview_nodes.size(); i < new_size; ++i) {
+            auto* preview_positionable = Object::cast_to<node::IsometricPositionable>(scene->instantiate());
             current_preview_nodes.push_back(preview_positionable);
             preview_positionable->set_modulate(Color(1, 1, 1, 0.5));
             preview_positionable->set_local_position_3d(all_positions[i]);
@@ -86,90 +68,53 @@ Vector<Ref<editor::commands::Command<node::IsometricMap>>> DragAndDropCommandEmi
         }
 
         return commands;
-    } else if (is_activated) {
-        _clear_current_preview_nodes(0);
-
-        Vector<Vector3> all_positions {_calculate_positionables_positions(initial_position, limit_position, positionable_size)};
-
-        for (Vector3 position : all_positions) {
-            Ref<editor::commands::AddPositionableCommand> add_command;
-            add_command.instantiate();
-            add_command->set_aabb({position, positionable_size});
-            add_command->set_positionable_id(selected_tile_id);
-            add_command->set_layer_id(IsometricEditorPlugin::get_instance()->get_selected_layer());
-            commands.push_back(add_command);
-        }
-
-        initial_position = Vector3(-1, -1, -1);
-        limit_position = Vector3(-1, -1, -1);
     }
+
+    if (!is_activated) { return commands; }
+
+    _clear_current_preview_nodes(0);
+
+    for (const Vector3& position : _calculate_positionables_positions(initial_position, limit_position, positionable_size)) {
+        Ref<AddPositionableCommand> add_command;
+        add_command.instantiate();
+        add_command->set_aabb(AABB(position, positionable_size));
+        add_command->set_positionable_id(selected_tile_id);
+        add_command->set_layer_id(isometric_editor_plugin->get_selected_layer());
+        commands.push_back(add_command);
+    }
+
+    initial_position = Vector3(-1, -1, -1);
+    limit_position = Vector3(-1, -1, -1);
 
     return commands;
 }
 
-void DragAndDropCommandEmitter::_clear_current_preview_nodes(int new_size) {
-    if (IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance()) {
-        node::IsometricMap* map {isometric_editor_plugin->get_selected_map()};
-
-        // Only remove but not delete nodes in the new range
-        for (int i = 0; i < MIN(new_size, current_preview_nodes.size()); ++i) {
-            if (node::IsometricPositionable* current_preview_node = current_preview_nodes[i]) {
-                map->remove_child(current_preview_node);
-            }
-        }
-        // Remove and delete excess nodes.
-        for (int i = new_size; i < current_preview_nodes.size(); ++i) {
-            if (node::IsometricPositionable* current_preview_node = current_preview_nodes[i]) {
-                map->remove_child(current_preview_node);
-                memdelete(current_preview_node);
-            }
-        }
-        if (new_size < current_preview_nodes.size()) { current_preview_nodes.resize(new_size); }
+void DragAndDropCommandEmitter::_clear_current_preview_nodes(int64_t new_size) {
+    for (node::IsometricPositionable* preview_node : current_preview_nodes) {
+        if (Node* parent = preview_node->get_parent()) { parent->remove_child(preview_node); }
     }
+    for (int64_t i = new_size; i < current_preview_nodes.size(); ++i) {
+        memdelete(current_preview_nodes[i]);
+    }
+    if (new_size < current_preview_nodes.size()) { current_preview_nodes.resize(new_size); }
 }
 
 AABB DragAndDropCommandEmitter::_calculate_real_aabb(const Vector3& initial_position, const Vector3& limit_position, const Vector3& positionable_size) {
-    const Vector3& position_delta {limit_position - initial_position};
-
-    float x_size {position_delta.x};
-    float positionable_x_size {positionable_size.x};
-    if (x_size < positionable_x_size) {
-        x_size = positionable_x_size;
-    } else {
-        x_size = Math::floor(position_delta.x / positionable_x_size) * positionable_x_size + 1;
+    Vector3 position_delta = limit_position - initial_position;
+    Vector3 size;
+    for (int axis = Vector3::AXIS_X; axis <= Vector3::AXIS_Z; ++axis) {
+        size[axis] = position_delta[axis] < positionable_size[axis]
+                     ? positionable_size[axis]
+                     : Math::floor(position_delta[axis] / positionable_size[axis]) * positionable_size[axis] + 1;
     }
 
-    float y_size {position_delta.y};
-    float positionable_y_size {positionable_size.y};
-    if (y_size < positionable_y_size) {
-        y_size = positionable_y_size;
-    } else {
-        y_size = Math::floor(position_delta.y / positionable_y_size) * positionable_y_size + 1;
-    }
-
-    float z_size {position_delta.z};
-    float positionable_z_size {positionable_size.z};
-    if (z_size < positionable_z_size) {
-        z_size = positionable_z_size;
-    } else {
-        z_size = Math::floor(position_delta.z / positionable_z_size) * positionable_z_size + 1;
-    }
-
-    switch (
-      IsometricEditorPlugin::get_instance()->get_editor_plane_for_map(
-                                             IsometricEditorPlugin::get_instance()->get_selected_map(),
-                                             EditorPlane::PlaneType::EDITOR_DRAWER
-      ).get_axis()
-    ) {
-        case Vector3::AXIS_X:
-            return {initial_position, {positionable_x_size, y_size, z_size}};
-        case Vector3::AXIS_Y:
-            return {initial_position, {x_size, positionable_y_size, z_size}};
-        case Vector3::AXIS_Z:
-            return {initial_position, {x_size, y_size, positionable_z_size}};
-    }
-
-    return {};
+    IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
+    Vector3::Axis plane_axis = isometric_editor_plugin
+                                 ->get_editor_plane_for_map(isometric_editor_plugin->get_selected_map(), EditorPlane::PlaneType::EDITOR_DRAWER)
+                                 .get_axis();
+    // Nothing spreads across the editor plane: the drag only fills the plane itself.
+    size[plane_axis] = positionable_size[plane_axis];
+    return {initial_position, size};
 }
 
 Vector<Vector3> DragAndDropCommandEmitter::_calculate_positionables_positions(
@@ -177,34 +122,22 @@ Vector<Vector3> DragAndDropCommandEmitter::_calculate_positionables_positions(
   const Vector3& limit_position,
   const Vector3& positionable_size
 ) {
-    AABB real_aabb {_calculate_real_aabb(initial_position, limit_position, positionable_size)};
+    AABB real_aabb = _calculate_real_aabb(initial_position, limit_position, positionable_size);
 
-    int elements_count_on_x {static_cast<int>(real_aabb.size.x / positionable_size.x)};
-    int elements_count_on_y {static_cast<int>(real_aabb.size.y / positionable_size.y)};
-    int elements_count_on_z {static_cast<int>(real_aabb.size.z / positionable_size.z)};
+    int elements_count_on_x = static_cast<int>(real_aabb.size.x / positionable_size.x);
+    int elements_count_on_y = static_cast<int>(real_aabb.size.y / positionable_size.y);
+    int elements_count_on_z = static_cast<int>(real_aabb.size.z / positionable_size.z);
 
-    Vector<Vector3> r_ret;
-
+    Vector<Vector3> positions;
     for (int i = 0; i < elements_count_on_x; ++i) {
         for (int j = 0; j < elements_count_on_y; ++j) {
             for (int k = 0; k < elements_count_on_z; ++k) {
-                r_ret.push_back(
-                  initial_position + Vector3(1, 0, 0) * static_cast<float>(i) * positionable_size.x
-                  + Vector3(0, 1, 0) * static_cast<float>(j) * positionable_size.y
-                  + Vector3(0, 0, 1) * static_cast<float>(k) * positionable_size.z
-                );
+                positions.push_back(initial_position + Vector3(i, j, k) * positionable_size);
             }
         }
     }
-
-    return r_ret;
+    return positions;
 }
-
-DragAndDropCommandEmitter::DragAndDropCommandEmitter() :
-  CommandEmitter(),
-  current_preview_nodes(),
-  initial_position(-1, -1, -1),
-  limit_position(-1, -1, -1) {}
 
 DragAndDropCommandEmitter::~DragAndDropCommandEmitter() {
     _clear_current_preview_nodes(0);

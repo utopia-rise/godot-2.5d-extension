@@ -4,35 +4,28 @@
 #ifdef TOOLS_ENABLED
 
 #include "command_emitter.h"
-#include "node/isometric_map.h"
 
-#include <core/input/input_event.h>
+#include <classes/input_event_mouse.hpp>
+#include <templates/hash_map.hpp>
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
-            static constexpr const char move_selection_action_name[]{"Move positionables"};
+namespace editor::commands::emitters {
+    // Shift + drag moves the selected positionables: previews follow the mouse, the release commits the move.
+    class MoveSelectionCommandEmitter : public CommandEmitter<MoveSelectionCommandEmitter, InputEventMouse> {
+        friend class CommandEmitter<MoveSelectionCommandEmitter, InputEventMouse>;
 
-            class MoveSelectionCommandEmitter : public CommandEmitter<MoveSelectionCommandEmitter, InputEventMouse, node::IsometricMap, move_selection_action_name, UndoRedo::MERGE_DISABLE, true> {
-                friend class CommandEmitter<MoveSelectionCommandEmitter, InputEventMouse, node::IsometricMap, move_selection_action_name, UndoRedo::MERGE_DISABLE, true>;
+        HashMap<Vector3, node::IsometricPositionable*> current_preview_nodes;
+        HashMap<Vector3, uint32_t> initial_layer_ids;
+        Vector3 initial_mouse_position = Vector3(-1, -1, -1);
+        bool is_move_valid = true;
 
-            private:
-                Vector<Ref<Command<node::IsometricMap>>> from_gui_input_to_command_impl([[maybe_unused]] Ref<InputEventMouse> p_event);
+        Vector<Ref<Command>> from_gui_input_to_command(const Ref<InputEventMouse>& p_event);
 
-                HashMap<Vector3, node::IsometricPositionable*> current_preview_nodes;
-                HashMap<Vector3, uint32_t> initial_layer_ids;
-                Vector3 initial_mouse_position {-1, -1, -1};
-                Vector3 new_mouse_position {-1, -1, -1};
-                bool is_move_valid = true;
+        void _clear_preview_nodes(node::IsometricMap* p_map);
 
-            public:
-                MoveSelectionCommandEmitter() = default;
-                ~MoveSelectionCommandEmitter() = default;
-            };
-        }
-    }
-}
+    public:
+        MoveSelectionCommandEmitter() : CommandEmitter("Move positionables", UndoRedo::MERGE_DISABLE, true) {}
+    };
+}// namespace editor::commands::emitters
 
 #endif
-
 #endif// ISOMETRIC_MAPS_MOVE_SELECTION_COMMAND_EMITTER_H

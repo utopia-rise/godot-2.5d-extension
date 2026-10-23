@@ -5,60 +5,38 @@
 #include "editor/commands/move_editor_plane_command.h"
 #include "editor/isometric_editor_plugin.h"
 
+using namespace godot;
 using namespace editor::commands::emitters;
 
-Vector<Ref<editor::commands::Command<node::IsometricMap>>> MoveEditorGridCommandEmitter::from_gui_input_to_command_impl(Ref<InputEventKey> p_event) {
-    Vector<Ref<editor::commands::Command<node::IsometricMap>>> commands;
+Vector<Ref<editor::commands::Command>> MoveEditorGridCommandEmitter::from_gui_input_to_command(const Ref<InputEventKey>& p_event) {
+    Vector<Ref<Command>> commands;
 
     if (!p_event->is_pressed()) { return commands; }
 
-    bool is_forward {false};
+    bool is_forward;
     switch (p_event->get_keycode()) {
-        case Key::UP:
+        case KEY_UP:
             is_forward = true;
             break;
-        case Key::DOWN:
+        case KEY_DOWN:
+            is_forward = false;
             break;
         default:
             return commands;
     }
 
-    IsometricEditorPlugin* isometric_editor_plugin {IsometricEditorPlugin::get_instance()};
-    node::IsometricMap* map {isometric_editor_plugin->get_selected_map()};
-    EditorPlane& editor_plane {isometric_editor_plugin->get_editor_plane_for_map(map, EditorPlane::PlaneType::EDITOR_DRAWER)};
+    IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
+    node::IsometricMap* map = isometric_editor_plugin->get_selected_map();
+    EditorPlane& editor_plane = isometric_editor_plugin->get_editor_plane_for_map(map, EditorPlane::PlaneType::EDITOR_DRAWER);
 
-    int current_position {editor_plane.get_position()};
-    int new_position {};
-    switch (editor_plane.get_axis()) {
-        case Vector3::AXIS_X:
-            if ((current_position == 0 && !is_forward) || (current_position >= map->get_size().x - 1 && is_forward)) {
-                return commands;
-            }
-            new_position = MIN(current_position, map->get_size().x);
-            break;
-        case Vector3::AXIS_Y:
-            if ((current_position == 0 && !is_forward) || (current_position >= map->get_size().y - 1 && is_forward)) {
-                return commands;
-            }
-            new_position = MIN(current_position, map->get_size().y);
-            break;
-        case Vector3::AXIS_Z:
-            if ((current_position == 0 && !is_forward) || (current_position >= map->get_size().z - 1 && is_forward)) {
-                return commands;
-            }
-            new_position = MIN(current_position, map->get_size().z);
-            break;
-        default:
-            break;
+    int current_position = editor_plane.get_position();
+    auto map_size_on_axis = static_cast<int>(map->get_size()[editor_plane.get_axis()]);
+    if ((current_position == 0 && !is_forward) || (current_position >= map_size_on_axis - 1 && is_forward)) {
+        return commands;
     }
+    int new_position = MIN(current_position, map_size_on_axis) + (is_forward ? 1 : -1);
 
-    if (is_forward) {
-        new_position += 1;
-    } else {
-        new_position -= 1;
-    }
-
-    Ref<editor::commands::MoveEditorPlaneCommand> move_command;
+    Ref<MoveEditorPlaneCommand> move_command;
     move_command.instantiate();
     move_command->set_plane_type(EditorPlane::PlaneType::EDITOR_DRAWER);
     move_command->set_old_position(current_position);

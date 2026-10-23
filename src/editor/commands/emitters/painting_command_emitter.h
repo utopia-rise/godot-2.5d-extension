@@ -2,33 +2,27 @@
 #define ISOMETRIC_MAPS_PAINTING_COMMAND_EMITTER_H
 
 #ifdef TOOLS_ENABLED
+
 #include "command_emitter.h"
-#include "editor/commands/add_positionable_command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
-            static constexpr const char painting_action_name[]{"Paint isometric elements"};
+#include <classes/input_event_mouse.hpp>
 
-            class PaintingCommandEmitter : public CommandEmitter<PaintingCommandEmitter, InputEventMouse, node::IsometricMap, painting_action_name> {
-                friend class CommandEmitter<PaintingCommandEmitter, InputEventMouse, node::IsometricMap, painting_action_name>;
+namespace editor::commands::emitters {
+    class PaintingCommandEmitter : public CommandEmitter<PaintingCommandEmitter, InputEventMouse> {
+        friend class CommandEmitter<PaintingCommandEmitter, InputEventMouse>;
 
-            public:
-                PaintingCommandEmitter();
-                ~PaintingCommandEmitter();
+        node::IsometricPositionable* current_preview_node = nullptr;
 
-            private:
-                node::IsometricPositionable* current_preview_node;
+        Vector<Ref<Command>> from_gui_input_to_command(const Ref<InputEventMouse>& p_event);
 
-                Vector<Ref<Command<node::IsometricMap>>> from_gui_input_to_command_impl([[maybe_unused]] Ref<InputEventMouse> p_event);
+        void _clear_current_preview_node();
 
-                void _clear_current_preview_node();
-            };
-        }// namespace emitters
-    }// namespace commands
-}// namespace editor
+    public:
+        PaintingCommandEmitter() : CommandEmitter("Paint isometric elements") {}
+
+        ~PaintingCommandEmitter();
+    };
+}// namespace editor::commands::emitters
 
 #endif
-
 #endif// ISOMETRIC_MAPS_PAINTING_COMMAND_EMITTER_H

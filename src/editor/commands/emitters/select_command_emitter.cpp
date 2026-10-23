@@ -1,44 +1,38 @@
 #ifdef TOOLS_ENABLED
+
 #include "select_command_emitter.h"
 
-#include "data/isometric_parameters.h"
+#include "editor/commands/select_positionable_command.h"
 #include "editor/isometric_editor_plugin.h"
-#include "isometric_server.h"
-#include "utils/isometric_maths.h"
 
+#include <classes/input_event_mouse_button.hpp>
+
+using namespace godot;
 using namespace editor::commands::emitters;
 
-Vector<Ref<editor::commands::Command<node::IsometricMap>>> SelectCommandEmitter::from_gui_input_to_command_impl(Ref<InputEventMouse> p_event) {// NOLINT(performance-unnecessary-value-param)
-    Vector<Ref<Command<node::IsometricMap>>> commands;
+Vector<Ref<editor::commands::Command>> SelectCommandEmitter::from_gui_input_to_command(const Ref<InputEventMouse>& p_event) {
+    Vector<Ref<Command>> commands;
 
-    if (!p_event->is_pressed() ||
-        !p_event->get_button_mask().has_flag(MouseButtonMask::LEFT) ||
-        p_event->is_shift_pressed()) {
+    // Shift + click starts moving the selection instead.
+    Ref<InputEventMouseButton> button_event = p_event;
+    if (
+      button_event.is_null() || !button_event->is_pressed() || button_event->get_button_index() != MOUSE_BUTTON_LEFT
+      || button_event->is_shift_pressed()
+    ) {
         return commands;
     }
 
-    IsometricEditorPlugin* isometric_editor_plugin {IsometricEditorPlugin::get_instance()};
-    node::IsometricMap* map {isometric_editor_plugin->get_selected_map()};
+    IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
+    node::IsometricMap* map = isometric_editor_plugin->get_selected_map();
+    Vector3 position = isometric_editor_plugin->get_mouse_position_3d();
 
-    const data::IsometricParameters* parameters {IsometricServer::get_instance()->space_get_configuration(map->get_space_RID())};
-
-    EditorPlane& editor_plane = isometric_editor_plugin->get_editor_plane_for_map(map, EditorPlane::PlaneType::EDITOR_DRAWER);
-    const Vector3& position {utils::from_screen_to_3D(
-      *parameters,
-      map->get_local_mouse_position(),
-      editor_plane.get_axis(),
-      static_cast<float>(editor_plane.get_position())
-    )};
-
-    if (!isometric_editor_plugin->is_aabb_in_view_limiters({position, {1, 1, 1}})) { return commands; }
-
+    if (!isometric_editor_plugin->is_aabb_in_view_limiters(AABB(position, Vector3(1, 1, 1)))) { return commands; }
     if (!map->get_positionable_at(position)) { return commands; }
 
-    Ref<editor::commands::SelectPositionableCommand> command;
+    Ref<SelectPositionableCommand> command;
     command.instantiate();
     command->set_position(position);
-    command->set_should_deselect_first(!p_event->is_command_or_control_pressed());
-
+    command->set_should_deselect_first(!button_event->is_command_or_control_pressed());
     commands.push_back(command);
 
     return commands;

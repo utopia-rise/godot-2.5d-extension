@@ -2,27 +2,21 @@
 #define ISOMETRIC_MAPS_SELECT_COMMAND_EMITTER_H
 
 #ifdef TOOLS_ENABLED
+
 #include "command_emitter.h"
-#include "editor/commands/select_positionable_command.h"
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
-            static constexpr const char select_action_name[]{"Select isometric element"};
+#include <classes/input_event_mouse.hpp>
 
-            class SelectCommandEmitter : public CommandEmitter<SelectCommandEmitter, InputEventMouse, node::IsometricMap, select_action_name> {
-                friend class CommandEmitter<SelectCommandEmitter, InputEventMouse, node::IsometricMap, select_action_name>;
+namespace editor::commands::emitters {
+    class SelectCommandEmitter : public CommandEmitter<SelectCommandEmitter, InputEventMouse> {
+        friend class CommandEmitter<SelectCommandEmitter, InputEventMouse>;
 
-            public:
-                SelectCommandEmitter() = default;
-                ~SelectCommandEmitter() = default;
+        Vector<Ref<Command>> from_gui_input_to_command(const Ref<InputEventMouse>& p_event);
 
-            private:
-                Vector<Ref<Command<node::IsometricMap>>> from_gui_input_to_command_impl(Ref<InputEventMouse> p_event);
-            };
-        }// namespace emitters
-    }// namespace commands
-}// namespace editor
+    public:
+        SelectCommandEmitter() : CommandEmitter("Select isometric element") {}
+    };
+}// namespace editor::commands::emitters
 
 #endif
 #endif// ISOMETRIC_MAPS_SELECT_COMMAND_EMITTER_H

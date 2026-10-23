@@ -2,50 +2,34 @@
 #define ISOMETRIC_MAPS_COMMAND_EMITTER_H
 
 #ifdef TOOLS_ENABLED
-#include "../command.h"
-#include "core/input/input_event.h"
-#include "editor/editor_undo_redo_manager.h"
-#include "command_to_action_transformer.h"
-#include <scene/main/node.h>
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
+#include "editor/commands/command.h"
 
-            template<class Derived, class Evt, class TContextNode, const char* action_title, UndoRedo::MergeMode merge_mode = UndoRedo::MERGE_DISABLE, bool backward_undo_ops = false>
-            class CommandEmitter {
-            public:
-                void on_gui_input(const Ref<InputEvent>& p_event, TContextNode* p_context = nullptr);
+#include <classes/input_event.hpp>
 
-                CommandEmitter() = default;
-                ~CommandEmitter() = default;
+namespace editor::commands::emitters {
+    // Turns canvas input events of type Evt into commands committed as one editor action. Derived implements
+    // from_gui_input_to_command.
+    template<class Derived, class Evt>
+    class CommandEmitter {
+        const char* action_title;
+        UndoRedo::MergeMode merge_mode;
+        bool backward_undo_ops;
 
-            private:
-                Vector<Ref<Command<TContextNode>>> from_gui_input_to_command(Ref<Evt> p_event);
-            };
+    public:
+        explicit CommandEmitter(const char* p_action_title, UndoRedo::MergeMode p_merge_mode = UndoRedo::MERGE_DISABLE, bool p_backward_undo_ops = false) :
+          action_title(p_action_title),
+          merge_mode(p_merge_mode),
+          backward_undo_ops(p_backward_undo_ops) {}
 
-            template<class Derived, class Evt, class TContextNode, const char* action_title, UndoRedo::MergeMode merge_mode, bool backward_undo_ops>
-            void CommandEmitter<Derived, Evt, TContextNode, action_title, merge_mode, backward_undo_ops>::on_gui_input(const Ref<InputEvent>& p_event, TContextNode* p_context) {
-                Ref<Evt> event {p_event};
+        void on_gui_input(const Ref<InputEvent>& p_event, node::IsometricMap* p_context) {
+            Ref<Evt> event = p_event;
+            if (event.is_null()) { return; }
 
-                if (event.is_null()) {
-                    return;
-                }
-
-                CommandToActionTransformer action_transformer;
-                action_transformer.transform<TContextNode, action_title, merge_mode, backward_undo_ops>(
-                  from_gui_input_to_command(event),
-                  p_context
-                );
-            }
-
-            template<class Derived, class Evt, class TContextNode, const char* action_title, UndoRedo::MergeMode merge_mode, bool backward_undo_ops>
-            Vector<Ref<Command<TContextNode>>> CommandEmitter<Derived, Evt, TContextNode, action_title, merge_mode, backward_undo_ops>::from_gui_input_to_command(Ref<Evt> p_event) {
-                return reinterpret_cast<Derived*>(this)->from_gui_input_to_command_impl(p_event);
-            }
-        }// namespace emitters
-    }// namespace commands
-}// namespace editor
+            Command::commit_as_action(static_cast<Derived*>(this)->from_gui_input_to_command(event), p_context, action_title, merge_mode, backward_undo_ops);
+        }
+    };
+}// namespace editor::commands::emitters
 
 #endif
 #endif// ISOMETRIC_MAPS_COMMAND_EMITTER_H
