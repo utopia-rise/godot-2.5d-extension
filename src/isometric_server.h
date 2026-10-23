@@ -128,6 +128,7 @@ private:
     void generate_topological_sorting_graph(data::IsometricSpace* p_space);
     void sort_isometric_element(data::IsometricElement* p_element);
     int calculate_z_order(data::IsometricElement* element_behind, int current_z_order);
+    void produce_result(data::IsometricElement* element);
     void produce_results(data::IsometricSpace* p_space);
 
     void command_set_debug(bool p_debug);

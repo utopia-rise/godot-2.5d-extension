@@ -141,6 +141,7 @@ void IsometricServer::isometric_element_attach_canvas_item(const RID& element_ri
     ISO_DEBUG_FAIL_COND_MSG(!element, vformat("Invalid isometric element RID: %s", element_rid.get_id()));
     element->canvas_item = canvas_rid;
     command_queue.push(this, &IsometricServer::command_isometric_element_set_depth, element, depth);
+    command_queue.push(this, &IsometricServer::command_isometric_element_mark_dirty, element);
 }
 
 void IsometricServer::isometric_element_detach_canvas_item(const RID& element_rid) {
@@ -228,7 +229,7 @@ void IsometricServer::apply_sort_results() {
         if (is_cycle_tinted || element->is_cycle_tinted || element->has_debug_modulate) {
             rendering_server->canvas_item_set_modulate(
               element->canvas_item,
-              is_cycle_tinted ? Color(1, 0.5, 0.5) : element->debug_modulate
+              is_cycle_tinted ? Color(1, 0.3, 0.3) : element->debug_modulate
             );
             element->is_cycle_tinted = is_cycle_tinted;
         }
@@ -402,6 +403,7 @@ void IsometricServer::command_isometric_element_set_depth(IsometricElement* elem
 }
 
 void IsometricServer::command_isometric_element_mark_dirty(IsometricElement* element) {
+    element->needs_result = true;
     if (element->space) { element->space->dirty = true; }
 }
 
@@ -520,18 +522,36 @@ int IsometricServer::calculate_z_order(IsometricElement* element_behind, int cur
     return new_z_order >= current_z_order ? new_z_order : current_z_order;
 }
 
+// Only changed results are handed over: the main thread applies them, so its cost follows what moved, not the map size.
+void IsometricServer::produce_result(IsometricElement* element) {
+    if (!element->needs_result && element->z_order == element->produced_z_order && element->is_invalid == element->produced_is_invalid) {
+        return;
+    }
+    element->needs_result = false;
+    element->produced_z_order = element->z_order;
+    element->produced_is_invalid = element->is_invalid;
+    produced_results.push_back({element->self, element->z_order, element->is_invalid});
+}
+
 void IsometricServer::produce_results(IsometricSpace* p_space) {
     for (IsometricElement* static_element : p_space->static_elements) {
-        produced_results.push_back({static_element->self, static_element->z_order, static_element->is_invalid});
+        produce_result(static_element);
     }
     for (IsometricElement* dynamic_element : p_space->dynamic_elements) {
-        produced_results.push_back({dynamic_element->self, dynamic_element->z_order, dynamic_element->is_invalid});
+        produce_result(dynamic_element);
     }
 }
 
-void IsometricServer::command_set_debug(bool p_debug) {
+void IsometricServer::command_set_debug([[maybe_unused]] bool p_debug) {
+    // Tints change for every element in a cycle, so every result is sent again.
     for (IsometricSpace* space : spaces) {
         space->dirty = true;
+        for (IsometricElement* static_element : space->static_elements) {
+            static_element->needs_result = true;
+        }
+        for (IsometricElement* dynamic_element : space->dynamic_elements) {
+            dynamic_element->needs_result = true;
+        }
     }
 }
 

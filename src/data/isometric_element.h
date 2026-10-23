@@ -38,6 +38,10 @@ namespace data {
         bool dirty = true;
         bool in_stack = false;
         bool is_invalid = false;
+        // Last result handed to the main thread: unchanged results are not sent again. needs_result forces the next one.
+        int produced_z_order = 0;
+        bool produced_is_invalid = false;
+        bool needs_result = true;
 
         godot::LocalVector<IsometricElement*> behind_statics;
         godot::LocalVector<IsometricElement*> behind_dynamics;
