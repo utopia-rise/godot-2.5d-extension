@@ -11,8 +11,8 @@ config_version=5
 [application]
 
 config/name="test-isometric-module"
-run/main_scene="res://dojo/Dojo.tscn"
-config/features=PackedStringArray("4.2")
+run/main_scene="res://tests/visual/sorting_showcase.tscn"
+config/features=PackedStringArray("4.7")
 config/icon="res://icon.png"
 
 [input]
