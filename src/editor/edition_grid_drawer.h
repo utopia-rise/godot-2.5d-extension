@@ -2,8 +2,9 @@
 #define ISOMETRIC_MAPS_EDITION_GRID_DRAWER_H
 
 #ifdef TOOLS_ENABLED
-#include "../node/isometric_map.h"
+
 #include "editor_plane.h"
+#include "node/isometric_map.h"
 
 namespace editor {
     class EditionGridDrawer {
@@ -14,5 +15,5 @@ namespace editor {
     };
 }// namespace editor
 
-#endif// TOOLS_ENABLED
+#endif
 #endif// ISOMETRIC_MAPS_EDITION_GRID_DRAWER_H

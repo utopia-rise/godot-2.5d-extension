@@ -3,38 +3,35 @@
 
 #ifdef TOOLS_ENABLED
 
-#include <node/isometric_positionable.h>
-#include <scene/gui/color_picker.h>
-#include <editor/editor_plugin.h>
+#include "node/isometric_positionable.h"
+
+#include <classes/color_picker_button.hpp>
+#include <classes/editor_plugin.hpp>
+#include <classes/h_box_container.hpp>
 
 namespace editor {
+    using namespace godot;
+
+    // Outlines the edited positionable (a tile, not a map) on the canvas.
     class IsometricTileEditorPlugin : public EditorPlugin {
         GDCLASS(IsometricTileEditorPlugin, EditorPlugin)
 
-    public:
-        static IsometricTileEditorPlugin* get_instance();
+        node::IsometricPositionable* selected_positionable = nullptr;
+        HBoxContainer* toolbar = nullptr;
+        ColorPickerButton* color_picker_button = nullptr;
 
-        IsometricTileEditorPlugin();
-        ~IsometricTileEditorPlugin() override = default;
-
-        IsometricTileEditorPlugin(const IsometricTileEditorPlugin&) = delete;
-
-    protected:
-        void _notification(int p_notification);
-        bool handles(Object* p_object) const override;
-        void edit(Object* p_object) override;
-        void make_visible(bool p_visible) override;
-
-    private:
         void _on_size_changed();
         void _on_color_picker_change(const Color& p_color);
 
-        node::IsometricPositionable* selected_positionable;
-        HBoxContainer* toolbar;
-        ColorPickerButton* color_picker_button;
+    protected:
+        void _notification(int p_what);
+
+        static void _bind_methods() {}
 
     public:
-        static void _bind_methods();
+        bool _handles(Object* p_object) const override;
+        void _edit(Object* p_object) override;
+        void _make_visible(bool p_visible) override;
     };
 }// namespace editor
 
