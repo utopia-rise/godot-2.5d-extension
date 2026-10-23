@@ -6,11 +6,16 @@ using namespace godot;
 using namespace editor::commands;
 
 void AddPositionableCommand::redo() {
-    context_node->add_positionable_if_nothing_present(aabb, positionable_id, layer_id);
+    if (restores_removed) {
+        context_node->add_positionable(aabb.position, positionable_id, layer_id);
+    } else {
+        context_node->add_positionable_if_nothing_present(aabb, positionable_id, layer_id);
+    }
     Command::redo();
 }
 
 void AddPositionableCommand::undo() {
+    restores_removed = context_node->is_overlapping(aabb);
     context_node->remove_positionable(aabb);
     Command::undo();
 }

@@ -98,7 +98,13 @@ namespace node {
 
         editor::OutlineData& get_outline_data();
         void update_debug_mesh_color(const Color& p_color) const;
-        void set_editor_modulate(const Color& p_modulate);
+#endif
+
+#ifdef DEBUG_ENABLED
+        static const Color CONFLICT_MODULATE_COLOR;
+
+        // Tints the node in debug builds, such as a tile overlapping another one in a map.
+        virtual void set_debug_modulate(const Color& p_modulate);
 #endif
     };
 }// namespace node

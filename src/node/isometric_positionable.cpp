@@ -266,9 +266,15 @@ void IsometricPositionable::update_debug_mesh_color(const Color& p_color) const 
     debug_mesh_material->set_albedo(p_color);
 }
 
-void IsometricPositionable::set_editor_modulate(const Color& p_modulate) {
+#endif
+
+#ifdef DEBUG_ENABLED
+
+const Color IsometricPositionable::CONFLICT_MODULATE_COLOR(1, 0, 0, 0.5);
+
+void IsometricPositionable::set_debug_modulate(const Color& p_modulate) {
     if (!self.is_valid()) { return; }
-    ISOMETRIC_SERVER->isometric_element_set_editor_modulate(self, p_modulate);
+    ISOMETRIC_SERVER->isometric_element_set_debug_modulate(self, p_modulate);
 }
 
 #endif

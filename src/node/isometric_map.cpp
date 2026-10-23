@@ -7,10 +7,6 @@
 using namespace godot;
 using namespace node;
 
-#ifdef TOOLS_ENABLED
-static const char* DEFAULT_LAYER_NAME = "Default";
-#endif
-
 IsometricMap::IsometricMap() {
     is_container = true;
 }
@@ -78,13 +74,15 @@ bool IsometricMap::is_overlapping(const AABB& aabb) const {
 
 #ifdef TOOLS_ENABLED
 
+void IsometricMap::add_positionable(const Vector3& p_position, int id, uint32_t layer_id) {
+    grid_3d.set_data(p_position, id);
+    layers_grid_3d.set_data(p_position, layer_id);
+    add_positionable_as_child(id, p_position, layer_id);
+}
+
 void IsometricMap::add_positionable_if_nothing_present(const AABB& aabb, int id, uint32_t layer_id) {
     if (instances_grid_3d.is_overlapping(aabb)) { return; }
-
-    const Vector3& aabb_position = aabb.position;
-    grid_3d.set_data(aabb_position, id);
-    layers_grid_3d.set_data(aabb_position, layer_id);
-    add_positionable_as_child(id, aabb_position, layer_id);
+    add_positionable(aabb.position, id, layer_id);
 }
 
 void IsometricMap::remove_positionable(const AABB& aabb) {
@@ -92,28 +90,42 @@ void IsometricMap::remove_positionable(const AABB& aabb) {
     grid_3d.set_data(aabb.position, resource::PositionableSet::NONE_POSITIONABLE_ID);
     instances_grid_3d.insert_box(aabb, nullptr, true);
     layers_grid_3d.set_data(aabb.position, DEFAULT_LAYER_ID);
+
+#ifdef DEBUG_ENABLED
+    // The positionables this one overlapped get their cells back, and lose their tint once they overlap nothing.
+    if (Vector<IsometricPositionable*>* conflict_instances = conflict_instances_map.getptr(aabb.position)) {
+        for (IsometricPositionable* conflict_instance : *conflict_instances) {
+            Vector3 conflict_position = conflict_instance->get_local_position_3d();
+            Vector<IsometricPositionable*>* their_conflicts = conflict_instances_map.getptr(conflict_position);
+            if (their_conflicts) { their_conflicts->erase(element_to_remove); }
+            if (their_conflicts && !their_conflicts->is_empty()) { continue; }
+
+            conflict_instances_map.erase(conflict_position);
+            conflict_instance->set_debug_modulate(Color(1, 1, 1));
+            instances_grid_3d.insert_box(AABB(conflict_position, conflict_instance->get_size()), conflict_instance);
+        }
+        conflict_instances_map.erase(aabb.position);
+    }
+#endif
+
     if (!element_to_remove) { return; }
     remove_child(element_to_remove);
     element_to_remove->queue_free();
 }
 
 Vector<IsometricPositionable*> IsometricMap::get_positionables_in(const AABB& p_aabb) const {
-    Vector<IsometricPositionable*> ret;
+    return instances_grid_3d.get_box(p_aabb);
+}
 
-    const Vector3& requested_size = p_aabb.size;
-    const Vector3& map_size = get_size();
-    int size_x = static_cast<int>(MIN(requested_size.x, map_size.x));
-    int size_y = static_cast<int>(MIN(requested_size.y, map_size.y));
-    int size_z = static_cast<int>(MIN(requested_size.z, map_size.z));
-    for (int x = 0; x < size_x; ++x) {
-        for (int y = 0; y < size_y; ++y) {
-            for (int z = 0; z < size_z; ++z) {
-                ret.push_back(instances_grid_3d.get_data(p_aabb.position + Vector3(x, y, z)));
-            }
-        }
+bool IsometricMap::has_positionable_in(const AABB& p_aabb, IsometricPositionable* p_excluded) const {
+    for (IsometricPositionable* positionable : instances_grid_3d.get_box(p_aabb)) {
+        if (positionable && positionable != p_excluded) { return true; }
     }
+    return false;
+}
 
-    return ret;
+Vector<Vector3> IsometricMap::get_connected_free_positions(const Vector3& p_start, Vector3::Axis p_axis, const Vector3& p_unit_size) const {
+    return instances_grid_3d.get_connected_empty_positions(p_start, p_axis, p_unit_size);
 }
 
 uint32_t IsometricMap::add_layer(const String& p_layer, uint32_t p_layer_id) {
@@ -138,6 +150,39 @@ void IsometricMap::remove_layer(const String& p_layer_name) {
     Variant layer_id = layers.find_key(p_layer_name);
     if (layer_id.get_type() == Variant::NIL) { return; }
     remove_layer(static_cast<uint32_t>(layer_id));
+}
+
+String IsometricMap::get_layer_name(uint32_t p_layer_id) const {
+    return layers.get(p_layer_id, String());
+}
+
+void IsometricMap::set_layer_name(uint32_t p_layer_id, const String& p_layer_name) {
+    layers[p_layer_id] = p_layer_name;
+}
+
+void IsometricMap::set_layer_id_at(const Vector3& p_position, uint32_t p_layer_id) {
+    uint32_t former_layer_id = layers_grid_3d.get_data(p_position);
+    layers_grid_3d.set_data(p_position, p_layer_id);
+
+    IsometricPositionable* positionable = instances_grid_3d.get_data(p_position);
+    if (!positionable) { return; }
+    if (const StringName* former_group = layers_groups.getptr(former_layer_id)) {
+        positionable->remove_from_group(*former_group);
+    }
+    if (const StringName* group = layers_groups.getptr(p_layer_id)) { positionable->add_to_group(*group); }
+    positionable->update_debug_mesh_color(get_meta(vformat(LAYER_COLOR_META_NAME_FORMAT, p_layer_id), Color()));
+}
+
+Vector<Vector3> IsometricMap::get_layer_positions(uint32_t p_layer_id) const {
+    Vector<Vector3> positions;
+    const Vector<uint32_t>& layer_ids = layers_grid_3d.get_internal_array();
+    const Vector<int>& positionable_ids = grid_3d.get_internal_array();
+    for (int i = 0; i < layer_ids.size(); ++i) {
+        if (layer_ids[i] == p_layer_id && positionable_ids[i] != resource::PositionableSet::NONE_POSITIONABLE_ID) {
+            positions.push_back(layers_grid_3d.get_position_3d_from_index(i));
+        }
+    }
+    return positions;
 }
 
 uint32_t IsometricMap::get_last_layer_id() const {
@@ -171,6 +216,23 @@ void IsometricMap::set_layer_color(uint32_t p_layer_id, const Color& p_color) {
         IsometricPositionable* instance = instances[i];
         if (instance && layer_assignations[i] == p_layer_id) { instance->update_debug_mesh_color(p_color); }
     }
+}
+
+#endif
+
+#ifdef DEBUG_ENABLED
+
+void IsometricMap::set_debug_modulate(const Color& p_modulate) {
+    for (int i = 0; i < get_child_count(); ++i) {
+        if (auto* positionable = Object::cast_to<IsometricPositionable>(get_child(i))) {
+            positionable->set_debug_modulate(p_modulate);
+        }
+    }
+}
+
+void IsometricMap::append_conflict_instance(const Vector3& p_position, IsometricPositionable* p_positionable) {
+    Vector<IsometricPositionable*>& conflict_instances = conflict_instances_map[p_position];
+    if (!conflict_instances.has(p_positionable)) { conflict_instances.push_back(p_positionable); }
 }
 
 #endif
@@ -227,6 +289,18 @@ void IsometricMap::add_positionable_as_child(int positionable_id, const Vector3&
     positionable->set_local_position_3d(p_position);
     if (const StringName* group = layers_groups.getptr(layer_id)) { positionable->add_to_group(*group); }
     add_child(positionable);
+
+#ifdef DEBUG_ENABLED
+    bool has_conflict = false;
+    for (IsometricPositionable* conflict_instance : instances_grid_3d.get_box(AABB(p_position, positionable->get_size()))) {
+        if (!conflict_instance) { continue; }
+        has_conflict = true;
+        conflict_instance->set_debug_modulate(IsometricPositionable::CONFLICT_MODULATE_COLOR);
+        append_conflict_instance(p_position, conflict_instance);
+        append_conflict_instance(conflict_instance->get_local_position_3d(), positionable);
+    }
+    if (has_conflict) { positionable->set_debug_modulate(IsometricPositionable::CONFLICT_MODULATE_COLOR); }
+#endif
 
     instances_grid_3d.insert_box(AABB(p_position, positionable->get_size()), positionable);
 

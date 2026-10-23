@@ -1,0 +1,11 @@
+[gd_resource type="PositionableSet" format=3 uid="uid://5elc74fyn66n"]
+
+[resource]
+categories = PackedStringArray("innerall")
+categories_to_identifiers = {
+"innerall": [1]
+}
+last_id = 1
+identifier_to_scene_path = {
+1: "res://block.tscn"
+}

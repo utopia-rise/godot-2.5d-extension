@@ -1,0 +1,40 @@
+[gd_scene load_steps=4 format=3 uid="uid://di10vuvijj6ik"]
+
+[ext_resource type="Script" path="res://DojoCamera.gd" id="1_e022l"]
+[ext_resource type="PackedScene" uid="uid://c4t5sg6s60jei" path="res://maps/dojobigmap.tscn" id="2_ia1pm"]
+[ext_resource type="PackedScene" uid="uid://bsdp741c2enwi" path="res://Character.tscn" id="3_coaba"]
+
+[node name="Dojo" type="Node2D"]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+script = ExtResource("1_e022l")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer"]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="FPS" type="Label" parent="CanvasLayer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Debug" type="Label" parent="CanvasLayer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Sync" type="Label" parent="CanvasLayer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PlayerPosition" type="Label" parent="CanvasLayer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Dojobigmap" parent="." instance=ExtResource("2_ia1pm")]
+
+[node name="Character" parent="Dojobigmap" instance=ExtResource("3_coaba")]
+unique_name_in_owner = true
+position = Vector2(0, -214.302)
+local_position_3d = Vector3(2, 2, 3)
+
+[node name="Camera2D" type="Camera2D" parent="Dojobigmap/Character"]
+zoom = Vector2(0.5, 0.5)

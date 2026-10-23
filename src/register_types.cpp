@@ -13,8 +13,10 @@
 #ifdef TOOLS_ENABLED
 #include "editor/commands/add_layer_command.h"
 #include "editor/commands/add_positionable_command.h"
+#include "editor/commands/change_layer_name_command.h"
 #include "editor/commands/composite_command.h"
 #include "editor/commands/move_editor_plane_command.h"
+#include "editor/commands/move_to_layer_command.h"
 #include "editor/commands/revert_command.h"
 #include "editor/commands/rotate_editor_plane_command.h"
 #include "editor/commands/select_positionable_command.h"
@@ -59,8 +61,10 @@ void initialize_isometric_maps_module(ModuleInitializationLevel p_level) {
         GDREGISTER_ABSTRACT_CLASS(editor::commands::Command);
         GDREGISTER_INTERNAL_CLASS(editor::commands::AddLayerCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::AddPositionableCommand);
+        GDREGISTER_INTERNAL_CLASS(editor::commands::ChangeLayerNameCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::CompositeCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::MoveEditorPlaneCommand);
+        GDREGISTER_INTERNAL_CLASS(editor::commands::MoveToLayerCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::RevertCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::RotateEditorPlaneCommand);
         GDREGISTER_INTERNAL_CLASS(editor::commands::SelectPositionableCommand);

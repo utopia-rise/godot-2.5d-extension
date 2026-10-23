@@ -17,6 +17,7 @@ namespace node {
     public:
         static constexpr uint32_t DEFAULT_LAYER_ID = 0;
         static constexpr uint32_t NO_LAYER_ID = 0xffffffff;
+        static constexpr const char* DEFAULT_LAYER_NAME = "Default";
 
 #ifdef TOOLS_ENABLED
         static constexpr const char* LAST_EDITED_LAYER_META_NAME = "_LAST_EDITED_LAYER";
@@ -27,6 +28,14 @@ namespace node {
         containers::Grid3D<int, resource::PositionableSet::NONE_POSITIONABLE_ID> grid_3d;
         containers::Grid3D<uint32_t, DEFAULT_LAYER_ID> layers_grid_3d;
         containers::Grid3D<IsometricPositionable*, nullptr> instances_grid_3d;
+
+#ifdef DEBUG_ENABLED
+        // Positionables whose boxes overlap, by cell of the grid; both sides are tinted until one is removed.
+        HashMap<Vector3, Vector<IsometricPositionable*>> conflict_instances_map;
+
+        void append_conflict_instance(const Vector3& p_position, IsometricPositionable* p_positionable);
+#endif
+
         Ref<resource::PositionableSet> positionable_set;
         bool child_positionable_initialized = false;
         Dictionary layers;
@@ -65,16 +74,28 @@ namespace node {
         bool is_overlapping(const AABB& aabb) const;
 
 #ifdef TOOLS_ENABLED
+        // Adds the positionable even over others; the overlapping ones are tinted as conflicts in debug builds.
+        void add_positionable(const Vector3& p_position, int id, uint32_t layer_id);
         void add_positionable_if_nothing_present(const AABB& aabb, int id, uint32_t layer_id);
         void remove_positionable(const AABB& aabb);
         Vector<IsometricPositionable*> get_positionables_in(const AABB& p_aabb) const;
+        bool has_positionable_in(const AABB& p_aabb, IsometricPositionable* p_excluded = nullptr) const;
+        Vector<Vector3> get_connected_free_positions(const Vector3& p_start, Vector3::Axis p_axis, const Vector3& p_unit_size) const;
         uint32_t add_layer(const String& p_layer, uint32_t p_layer_id = NO_LAYER_ID);
         void remove_layer(uint32_t p_layer_id);
         void remove_layer(const String& p_layer_name);
+        String get_layer_name(uint32_t p_layer_id) const;
+        void set_layer_name(uint32_t p_layer_id, const String& p_layer_name);
+        void set_layer_id_at(const Vector3& p_position, uint32_t p_layer_id);
+        Vector<Vector3> get_layer_positions(uint32_t p_layer_id) const;
         uint32_t get_last_layer_id() const;
         void set_last_layer_id(uint32_t p_last_layer_id);
         void set_layer_visible(uint32_t p_layer_id, bool is_visible);
         void set_layer_color(uint32_t p_layer_id, const Color& p_color);
+#endif
+
+#ifdef DEBUG_ENABLED
+        void set_debug_modulate(const Color& p_modulate) override;
 #endif
     };
 }// namespace node

@@ -1,0 +1,13 @@
+[gd_resource type="PositionableSet" format=3 uid="uid://dhsxl2jgqoyib"]
+
+[resource]
+categories = PackedStringArray("all", "")
+categories_to_identifiers = {
+"": [],
+"all": [1, 2]
+}
+last_id = 2
+identifier_to_scene_path = {
+1: "res://block.tscn",
+2: "res://maps/resize_map_tets/innermap.tscn"
+}

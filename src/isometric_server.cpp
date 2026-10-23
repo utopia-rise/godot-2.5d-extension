@@ -173,11 +173,12 @@ int IsometricServer::isometric_element_get_z_order(const RID& element_rid) {
     return element->applied_z_order;
 }
 
-#ifdef TOOLS_ENABLED
-void IsometricServer::isometric_element_set_editor_modulate(const RID& element_rid, const Color& color) {
+#ifdef DEBUG_ENABLED
+void IsometricServer::isometric_element_set_debug_modulate(const RID& element_rid, const Color& color) {
     IsometricElement* element = elements_owner.get_or_null(element_rid);
     ISO_DEBUG_FAIL_COND_MSG(!element, vformat("Invalid isometric element RID: %s", element_rid.get_id()));
-    element->editor_modulate = color;
+    element->debug_modulate = color;
+    element->has_debug_modulate = true;
     command_queue.push(this, &IsometricServer::command_isometric_element_mark_dirty, element);
 }
 #endif
@@ -221,14 +222,15 @@ void IsometricServer::apply_sort_results() {
         if (!element->canvas_item.is_valid()) { continue; }
 
         rendering_server->canvas_item_set_z_index(element->canvas_item, result.z_order);
-#ifdef TOOLS_ENABLED
-        rendering_server->canvas_item_set_modulate(
-          element->canvas_item,
-          is_debug && result.is_invalid ? Color(1, 0.5, 0.5) : element->editor_modulate
-        );
-#elif defined(DEBUG_ENABLED)
-        if (is_debug) {
-            rendering_server->canvas_item_set_modulate(element->canvas_item, result.is_invalid ? Color(1, 0.5, 0.5) : Color(1, 1, 1));
+#ifdef DEBUG_ENABLED
+        // Untinted canvas items keep the modulate their node gave them.
+        bool is_cycle_tinted = is_debug && result.is_invalid;
+        if (is_cycle_tinted || element->is_cycle_tinted || element->has_debug_modulate) {
+            rendering_server->canvas_item_set_modulate(
+              element->canvas_item,
+              is_cycle_tinted ? Color(1, 0.5, 0.5) : element->debug_modulate
+            );
+            element->is_cycle_tinted = is_cycle_tinted;
         }
 #endif
     }
@@ -262,23 +264,32 @@ void IsometricServer::command_space_create(IsometricSpace* space) {
 
 void IsometricServer::command_space_attach_isometric_element(IsometricSpace* space, IsometricElement* element) {
     if (element->space) { detach_from_space(element); }
+    Chunk* chunk = get_or_create_chunk(space, element->aabb.position);
     element->space = space;
+    element->chunk = chunk;
     space->dirty = true;
 
     if (element->is_dynamic) {
         space->dynamic_elements.push_back(element);
+        chunk->dynamic_elements.push_back(element);
         return;
     }
 
-    for (IsometricElement* static_element : space->static_elements) {
-        if (!utils::are_boxes_overlapping(space->sort_configuration, static_element->aabb, element->aabb)) { continue; }
-        if (utils::is_box_in_front(space->sort_configuration, static_element->aabb, element->aabb)) {
-            static_element->behind_statics.push_back(element);
-        } else {
-            element->behind_statics.push_back(static_element);
+    // Statics never move, so their edges with other statics are computed once, here.
+    for (Chunk* neighbor : chunk->all_neighbors) {
+        for (IsometricElement* static_element : neighbor->static_elements) {
+            if (!utils::are_boxes_overlapping(space->sort_configuration, static_element->aabb, element->aabb)) {
+                continue;
+            }
+            if (utils::is_box_in_front(space->sort_configuration, static_element->aabb, element->aabb)) {
+                static_element->behind_statics.push_back(element);
+            } else {
+                element->behind_statics.push_back(static_element);
+            }
         }
     }
     space->static_elements.push_back(element);
+    chunk->static_elements.push_back(element);
 }
 
 void IsometricServer::command_space_detach_isometric_element(IsometricElement* element) {
@@ -289,18 +300,53 @@ void IsometricServer::detach_from_space(IsometricElement* element) {
     IsometricSpace* space = element->space;
     if (!space) { return; }
 
+    Chunk* chunk = element->chunk;
     space->dirty = true;
     if (element->is_dynamic) {
         space->dynamic_elements.erase(element);
+        chunk->dynamic_elements.erase(element);
     } else {
         space->static_elements.erase(element);
-        for (IsometricElement* static_element : space->static_elements) {
-            static_element->behind_statics.erase(element);
+        chunk->static_elements.erase(element);
+        for (Chunk* neighbor : chunk->all_neighbors) {
+            for (IsometricElement* static_element : neighbor->static_elements) {
+                static_element->behind_statics.erase(element);
+            }
         }
     }
     element->behind_statics.clear();
     element->behind_dynamics.clear();
     element->space = nullptr;
+    element->chunk = nullptr;
+}
+
+Chunk* IsometricServer::get_or_create_chunk(IsometricSpace* space, const Vector3& position) {
+    Vector2i chunk_position(
+      static_cast<int>(Math::floor(position.x / IsometricSpace::CHUNK_SIZE)),
+      static_cast<int>(Math::floor(position.y / IsometricSpace::CHUNK_SIZE))
+    );
+    if (Chunk* chunk = space->chunks.getptr(chunk_position)) { return chunk; }
+
+    Chunk* chunk = &space->chunks.insert(chunk_position, Chunk())->value;
+    chunk->all_neighbors.push_back(chunk);
+    chunk->dynamic_sorting_neighbors.push_back(chunk);
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            if (x == 0 && y == 0) { continue; }
+            Chunk* neighbor = space->chunks.getptr(chunk_position + Vector2i(x, y));
+            if (!neighbor) { continue; }
+
+            chunk->all_neighbors.push_back(neighbor);
+            neighbor->all_neighbors.push_back(chunk);
+            // Each pair of neighboring chunks compares its dynamic elements once, from the chunk listing the other.
+            if (x == -1 || (x == 0 && y == -1)) {
+                neighbor->dynamic_sorting_neighbors.push_back(chunk);
+            } else {
+                chunk->dynamic_sorting_neighbors.push_back(neighbor);
+            }
+        }
+    }
+    return chunk;
 }
 
 void IsometricServer::command_space_set_configuration(IsometricSpace* space, IsometricParameters configuration) {
@@ -311,11 +357,13 @@ void IsometricServer::command_space_set_configuration(IsometricSpace* space, Iso
 void IsometricServer::command_space_delete(IsometricSpace* space) {
     for (IsometricElement* static_element : space->static_elements) {
         static_element->space = nullptr;
+        static_element->chunk = nullptr;
         static_element->behind_statics.clear();
         static_element->behind_dynamics.clear();
     }
     for (IsometricElement* dynamic_element : space->dynamic_elements) {
         dynamic_element->space = nullptr;
+        dynamic_element->chunk = nullptr;
         dynamic_element->behind_statics.clear();
         dynamic_element->behind_dynamics.clear();
     }
@@ -326,11 +374,24 @@ void IsometricServer::command_space_delete(IsometricSpace* space) {
 void IsometricServer::command_isometric_element_set_position(IsometricElement* element, Vector3 global_position) {
     ISO_DEBUG_FAIL_COND_MSG(element->space && !element->is_dynamic, "A static element position can't be changed after being attached to a space.");
     element->aabb.position = global_position;
-    if (element->space) { element->space->dirty = true; }
+    IsometricSpace* space = element->space;
+    if (!space) { return; }
+
+    space->dirty = true;
+    Chunk* new_chunk = get_or_create_chunk(space, global_position);
+    if (new_chunk == element->chunk) { return; }
+    element->chunk->dynamic_elements.erase(element);
+    new_chunk->dynamic_elements.push_back(element);
+    element->chunk = new_chunk;
 }
 
 void IsometricServer::command_isometric_element_set_size(IsometricElement* element, Vector3 size) {
     ISO_DEBUG_FAIL_COND_MSG(element->space && !element->is_dynamic, "A static element size can't be changed after being attached to a space.");
+#ifdef DEBUG_ENABLED
+    if (size.x > IsometricSpace::CHUNK_SIZE || size.y > IsometricSpace::CHUNK_SIZE) {
+        LOG_WARNING(vformat("Isometric elements larger than %d on x or y may be sorted wrongly.", IsometricSpace::CHUNK_SIZE));
+    }
+#endif
     element->aabb.size = size;
     if (element->space) { element->space->dirty = true; }
 }
@@ -381,29 +442,36 @@ void IsometricServer::command_isometric_sort() {
     sort_in_flight.store(false, std::memory_order_release);
 }
 
+// Records which of two overlapping elements is behind the other; the first one is dynamic.
+static void link_if_overlapping(const IsometricParameters& configuration, IsometricElement* dynamic_element, IsometricElement* other) {
+    if (!utils::are_boxes_overlapping(configuration, dynamic_element->aabb, other->aabb)) { return; }
+    if (utils::is_box_in_front(configuration, dynamic_element->aabb, other->aabb)) {
+        (other->is_dynamic ? dynamic_element->behind_dynamics : dynamic_element->behind_statics).push_back(other);
+    } else {
+        other->behind_dynamics.push_back(dynamic_element);
+    }
+}
+
 void IsometricServer::generate_topological_sorting_graph(IsometricSpace* p_space) {
     const IsometricParameters& configuration = p_space->sort_configuration;
-    LocalVector<IsometricElement*>& dynamic_elements = p_space->dynamic_elements;
 
-    for (uint32_t i = 0; i < dynamic_elements.size(); ++i) {
-        IsometricElement* dynamic_element = dynamic_elements[i];
-
-        for (uint32_t j = i + 1; j < dynamic_elements.size(); ++j) {
-            IsometricElement* other = dynamic_elements[j];
-            if (!utils::are_boxes_overlapping(configuration, dynamic_element->aabb, other->aabb)) { continue; }
-            if (utils::is_box_in_front(configuration, dynamic_element->aabb, other->aabb)) {
-                dynamic_element->behind_dynamics.push_back(other);
-            } else {
-                other->behind_dynamics.push_back(dynamic_element);
+    for (KeyValue<Vector2i, Chunk>& entry : p_space->chunks) {
+        Chunk& chunk = entry.value;
+        for (Chunk* neighbor : chunk.dynamic_sorting_neighbors) {
+            for (uint32_t i = 0; i < chunk.dynamic_elements.size(); ++i) {
+                // Within a chunk, each pair of dynamic elements is compared once.
+                uint32_t first_other = neighbor == &chunk ? i + 1 : 0;
+                for (uint32_t j = first_other; j < neighbor->dynamic_elements.size(); ++j) {
+                    link_if_overlapping(configuration, chunk.dynamic_elements[i], neighbor->dynamic_elements[j]);
+                }
             }
         }
 
-        for (IsometricElement* static_element : p_space->static_elements) {
-            if (!utils::are_boxes_overlapping(configuration, dynamic_element->aabb, static_element->aabb)) { continue; }
-            if (utils::is_box_in_front(configuration, dynamic_element->aabb, static_element->aabb)) {
-                dynamic_element->behind_statics.push_back(static_element);
-            } else {
-                static_element->behind_dynamics.push_back(dynamic_element);
+        for (IsometricElement* dynamic_element : chunk.dynamic_elements) {
+            for (Chunk* neighbor : chunk.all_neighbors) {
+                for (IsometricElement* static_element : neighbor->static_elements) {
+                    link_if_overlapping(configuration, dynamic_element, static_element);
+                }
             }
         }
     }
@@ -411,7 +479,7 @@ void IsometricServer::generate_topological_sorting_graph(IsometricSpace* p_space
     for (IsometricElement* static_element : p_space->static_elements) {
         if (static_element->dirty) { sort_isometric_element(static_element); }
     }
-    for (IsometricElement* dynamic_element : dynamic_elements) {
+    for (IsometricElement* dynamic_element : p_space->dynamic_elements) {
         if (dynamic_element->dirty) { sort_isometric_element(dynamic_element); }
     }
 }

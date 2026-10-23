@@ -1,6 +1,7 @@
 #ifndef ISOMETRIC_MAPS_GRID_3D_H
 #define ISOMETRIC_MAPS_GRID_3D_H
 
+#include <templates/hash_set.hpp>
 #include <templates/vector.hpp>
 #include <variant/aabb.hpp>
 #include <variant/array.hpp>
@@ -46,7 +47,14 @@ namespace containers {
 
         bool insert_box(const AABB& aabb, T data, bool remove = false);
 
+        // The cells of the box that lie inside the grid.
+        Vector<T> get_box(const AABB& aabb) const;
+
         bool is_overlapping(const AABB& aabb) const;
+
+        // Flood fill on the plane orthogonal to p_axis: every position, by steps of p_unit_size, from which a box of
+        // p_unit_size fits in the grid on empty cells, connected to p_start.
+        Vector<Vector3> get_connected_empty_positions(const Vector3& p_start, Vector3::Axis p_axis, const Vector3& p_unit_size) const;
 
         bool has(T object) const;
 
@@ -165,6 +173,60 @@ namespace containers {
             if (index >= 0 && index < internal_array.size() && internal_array[index] != default_value) { return true; }
         }
         return false;
+    }
+
+    template<class T, T default_value>
+    Vector<T> Grid3D<T, default_value>::get_box(const AABB& aabb) const {
+        Vector<T> cells;
+        int start_x = MAX(static_cast<int>(aabb.position.x), 0);
+        int start_y = MAX(static_cast<int>(aabb.position.y), 0);
+        int start_z = MAX(static_cast<int>(aabb.position.z), 0);
+        int end_x = MIN(static_cast<int>(aabb.position.x + aabb.size.x), width);
+        int end_y = MIN(static_cast<int>(aabb.position.y + aabb.size.y), depth);
+        int end_z = MIN(static_cast<int>(aabb.position.z + aabb.size.z), height);
+        for (int z = start_z; z < end_z; ++z) {
+            for (int y = start_y; y < end_y; ++y) {
+                for (int x = start_x; x < end_x; ++x) {
+                    cells.push_back(internal_array[x + width * y + width * depth * z]);
+                }
+            }
+        }
+        return cells;
+    }
+
+    template<class T, T default_value>
+    Vector<Vector3> Grid3D<T, default_value>::get_connected_empty_positions(const Vector3& p_start, Vector3::Axis p_axis, const Vector3& p_unit_size) const {
+        Vector3 first_step;
+        Vector3 second_step;
+        first_step[(p_axis + 1) % 3] = p_unit_size[(p_axis + 1) % 3];
+        second_step[(p_axis + 2) % 3] = p_unit_size[(p_axis + 2) % 3];
+        const Vector3 steps[] = {first_step, -first_step, second_step, -second_step};
+
+        Vector<Vector3> connected_positions;
+        HashSet<Vector3> visited;
+        Vector<Vector3> stack;
+        stack.push_back(p_start);
+        visited.insert(p_start);
+
+        while (!stack.is_empty()) {
+            Vector3 position = stack[stack.size() - 1];
+            stack.remove_at(stack.size() - 1);
+
+            AABB box(position, p_unit_size);
+            bool fits = position.x >= 0 && position.y >= 0 && position.z >= 0 && position.x + p_unit_size.x <= width
+                     && position.y + p_unit_size.y <= depth && position.z + p_unit_size.z <= height;
+            if (!fits || is_overlapping(box)) { continue; }
+            connected_positions.push_back(position);
+
+            for (const Vector3& step : steps) {
+                Vector3 neighbor = position + step;
+                if (visited.has(neighbor)) { continue; }
+                visited.insert(neighbor);
+                stack.push_back(neighbor);
+            }
+        }
+
+        return connected_positions;
     }
 
     template<class T, T default_value>

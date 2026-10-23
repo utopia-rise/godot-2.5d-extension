@@ -84,7 +84,11 @@ Checks: `test_element_in_front_on_x_is_drawn_over`, `test_element_in_front_on_y_
 Each element keeps the list of elements behind it. Static/static edges are computed once, when a static element joins
 the space. Edges involving dynamic elements are rebuilt on every sort, since those elements move.
 
+Spaces are split into 10 × 10 chunks on x and y, and an element is only compared with the elements of its chunk and
+the 8 around it, so the cost of a sort grows with the density of a map rather than with its size.
+
 Checks: `test_dynamic_element_is_sorted_against_statics`, `test_dynamic_elements_are_sorted_together`,
+`test_neighbors_across_a_chunk_border_are_sorted`, `test_dynamic_element_moving_to_another_chunk_is_sorted_there`,
 `test_resizing_dynamic_element_updates_ordering`, `test_detached_element_no_longer_constrains_others`.
 
 ### 7. A depth-first walk turns the graph into z-indices
@@ -124,6 +128,7 @@ Checks: `test_map.gd`.
 
 - Boxes that partially interpenetrate (a character half under a bridge) get one z-index each: the painter's order
   cannot split a box, so part of the overlap is drawn wrongly.
+- Elements larger than a chunk (10 cells on x or y) can miss elements they overlap; debug builds warn about them.
 - Canvas z-indices are capped by Godot (Â±4096): a single chain of more stacked elements than that saturates.
 
 ## Building

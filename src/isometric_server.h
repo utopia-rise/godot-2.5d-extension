@@ -95,8 +95,8 @@ public:
     void isometric_element_set_depth(const godot::RID& element_rid, int depth);
     int isometric_element_get_z_order(const godot::RID& element_rid);
 
-#ifdef TOOLS_ENABLED
-    void isometric_element_set_editor_modulate(const godot::RID& element_rid, const godot::Color& color);
+#ifdef DEBUG_ENABLED
+    void isometric_element_set_debug_modulate(const godot::RID& element_rid, const godot::Color& color);
 #endif
 
     // ORDERING
@@ -134,6 +134,7 @@ private:
     void command_stop_server();
 
     static void detach_from_space(data::IsometricElement* element);
+    static data::Chunk* get_or_create_chunk(data::IsometricSpace* space, const godot::Vector3& position);
 
 protected:
     static void _bind_methods();

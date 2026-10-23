@@ -11,3 +11,4 @@ layers = {
 0: "Default"
 }
 last_layer_id = 1
+metadata/_LAYER_0_COLOR = Color(0.878431, 0.160784, 0.160784, 1)

@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://bajnk0o2x5783"]
+
+[ext_resource type="PositionableSet" uid="uid://5elc74fyn66n" path="res://maps/resize_map_tets/inner_set.tres" id="1_wenw3"]
+
+[node name="Innermap" type="IsometricMap"]
+size = Vector3(4, 3, 1)
+positionable_set = ExtResource("1_wenw3")
+grid_3d = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+layers_grid_3d = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+layers = {
+0: "Default"
+}
+metadata/_LAYER_0_COLOR = Color(0, 0, 0, 1)

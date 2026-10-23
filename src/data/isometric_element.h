@@ -7,6 +7,7 @@
 #include <variant/rid.hpp>
 
 namespace data {
+    struct Chunk;
     struct IsometricSpace;
 
     // Each field is owned by one thread: the main thread through the IsometricServer API, or the server thread through
@@ -20,12 +21,17 @@ namespace data {
         bool is_dynamic = false;
         int applied_z_order = 0;
 
-#ifdef TOOLS_ENABLED
-        godot::Color editor_modulate = godot::Color(1, 1, 1);
+#ifdef DEBUG_ENABLED
+        // Debug tint, such as tiles overlapping in a map. Applied only once set, so the canvas item keeps its own
+        // modulate otherwise.
+        godot::Color debug_modulate = godot::Color(1, 1, 1);
+        bool has_debug_modulate = false;
+        bool is_cycle_tinted = false;
 #endif
 
         //////// Server thread ////////
         IsometricSpace* space = nullptr;
+        Chunk* chunk = nullptr;
         godot::AABB aabb = godot::AABB(godot::Vector3(0, 0, 0), godot::Vector3(1, 1, 1));
         int depth = 1;
         int z_order = 0;

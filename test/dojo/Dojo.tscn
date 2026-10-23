@@ -15,7 +15,7 @@ position = Vector2(0, -214.302)
 local_position_3d = Vector3(2, 2, 3)
 
 [node name="Camera2D" type="Camera2D" parent="IsometricMap/Character"]
-zoom = Vector2(2, 2)
+zoom = Vector2(0.5, 0.5)
 
 [node name="IsometricMap" parent="IsometricMap" instance=ExtResource("4")]
 position = Vector2(0, 1635.23)
@@ -24,6 +24,7 @@ layers_grid_3d = [0, 0, 0, 0, 0, 0, 0, 0]
 layers = {
 0: "Default"
 }
+metadata/_LAYER_0_COLOR = Color(0, 0, 0, 1)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 script = ExtResource("2")

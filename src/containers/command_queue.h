@@ -100,9 +100,7 @@ namespace containers {
         }
 
         // Calls run on the producer's thread until a consumer starts, and again once it has exited.
-        void start_consumer() {
-            consumer_running = true;
-        }
+        void start_consumer() { consumer_running = true; }
 
         void stop_consumer() {
             consumer_running = false;

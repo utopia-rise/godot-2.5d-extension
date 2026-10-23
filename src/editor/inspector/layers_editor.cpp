@@ -4,9 +4,12 @@
 
 #include "editor/commands/add_layer_command.h"
 #include "editor/commands/add_positionable_command.h"
+#include "editor/commands/change_layer_name_command.h"
 #include "editor/commands/revert_command.h"
+#include "editor/commands/select_positionable_command.h"
 #include "editor/commands/set_layer_visibility_command.h"
 #include "editor/isometric_editor_plugin.h"
+#include "editor/positionable_selector_manager.h"
 
 #include <classes/button.hpp>
 #include <classes/color_picker_button.hpp>
@@ -20,6 +23,8 @@ using namespace editor::inspector;
 static constexpr const char* ADD_LAYER_ACTION_NAME = "Add layer";
 static constexpr const char* REMOVE_LAYER_ACTION_NAME = "Remove layer";
 static constexpr const char* SET_LAYER_VISIBLE_ACTION_NAME = "Set layer visible";
+static constexpr const char* CHANGE_LAYER_NAME_ACTION_NAME_FORMAT = "Change layer name (id: %s)";
+static constexpr const char* SELECT_LAYER_CONTENT_ACTION_NAME = "Select layer content";
 
 static Label* create_label(const String& p_text) {
     auto* label = memnew(Label);
@@ -44,7 +49,7 @@ LayersEditor::LayersEditor() :
     add_child(top_bar);
 
     auto* scroll_container = memnew(ScrollContainer);
-    layer_controls_container->set_columns(5);
+    layer_controls_container->set_columns(6);
     layer_controls_container->set_h_size_flags(SIZE_EXPAND_FILL);
     scroll_container->add_child(layer_controls_container);
     scroll_container->set_h_size_flags(SIZE_EXPAND_FILL);
@@ -77,6 +82,7 @@ void LayersEditor::refresh() {
     layer_controls_container->add_child(create_label("Layer name"));
     layer_controls_container->add_child(create_label("Color"));
     layer_controls_container->add_child(create_label("Visible"));
+    layer_controls_container->add_child(create_label("Select content"));
     layer_controls_container->add_child(create_label("Remove"));
 
     uint32_t last_layer_edited = current_map->get_meta(node::IsometricMap::LAST_EDITED_LAYER_META_NAME, node::IsometricMap::DEFAULT_LAYER_ID);
@@ -92,7 +98,19 @@ void LayersEditor::refresh() {
         current_layer_check_box->set_button_group(current_layer_button_group);
         layer_controls_container->add_child(current_layer_check_box);
 
-        layer_controls_container->add_child(create_label(layer_name));
+        if (layer_id == node::IsometricMap::DEFAULT_LAYER_ID) {
+            layer_controls_container->add_child(create_label(layer_name));
+        } else {
+            auto* layer_name_line_edit = memnew(LineEdit);
+            layer_name_line_edit->set_text(layer_name);
+            Callable on_name_edited = callable_mp(this, &LayersEditor::_on_layer_name_edited).bind(layer_name_line_edit, layer_id);
+            layer_name_line_edit->connect(
+              "text_submitted",
+              callable_mp(this, &LayersEditor::_on_layer_name_submitted).bind(layer_name_line_edit, layer_id)
+            );
+            layer_name_line_edit->connect("focus_exited", on_name_edited);
+            layer_controls_container->add_child(layer_name_line_edit);
+        }
 
         auto* color_picker_button = memnew(ColorPickerButton);
         color_picker_button->connect("color_changed", callable_mp(this, &LayersEditor::_layer_color_changed).bind(layer_id));
@@ -105,6 +123,11 @@ void LayersEditor::refresh() {
         visible_check_box->set_pressed(true);
         visible_check_box->connect("pressed", callable_mp(this, &LayersEditor::_set_layer_visible).bind(layer_id, visible_check_box));
         layer_controls_container->add_child(visible_check_box);
+
+        auto* select_content_button = memnew(Button);
+        select_content_button->set_text("Select");
+        select_content_button->connect("pressed", callable_mp(this, &LayersEditor::_on_layer_select_content).bind(layer_id));
+        layer_controls_container->add_child(select_content_button);
 
         auto* layer_remove_button = memnew(Button);
         layer_remove_button->set_text("-");
@@ -124,6 +147,58 @@ void LayersEditor::_add_layer() {
     Vector<Ref<commands::Command>> commands;
     commands.push_back(add_layer_command);
     commands::Command::commit_as_action(commands, IsometricEditorPlugin::get_instance()->get_selected_map(), ADD_LAYER_ACTION_NAME);
+    layer_line_edit->clear();
+}
+
+void LayersEditor::_on_layer_name_submitted([[maybe_unused]] const String& p_text, LineEdit* p_line_edit, uint32_t p_layer_id) {
+    _on_layer_name_edited(p_line_edit, p_layer_id);
+}
+
+// Renames are committed when editing ends, not on each keystroke: the undo history refreshes this editor, which
+// recreates the line edits.
+void LayersEditor::_on_layer_name_edited(LineEdit* p_line_edit, uint32_t p_layer_id) {
+    node::IsometricMap* current_map = IsometricEditorPlugin::get_instance()->get_selected_map();
+    if (!current_map) { return; }
+
+    String new_layer_name = p_line_edit->get_text();
+    String former_layer_name = current_map->get_layer_name(p_layer_id);
+    if (new_layer_name.is_empty() || new_layer_name == former_layer_name) { return; }
+
+    Ref<commands::ChangeLayerNameCommand> change_layer_name_command;
+    change_layer_name_command.instantiate();
+    change_layer_name_command->set_layer_id(p_layer_id);
+    change_layer_name_command->set_new_layer_name(new_layer_name);
+    change_layer_name_command->set_former_layer_name(former_layer_name);
+
+    Vector<Ref<commands::Command>> commands;
+    commands.push_back(change_layer_name_command);
+    commands::Command::commit_as_action(commands, current_map, vformat(CHANGE_LAYER_NAME_ACTION_NAME_FORMAT, p_layer_id), UndoRedo::MERGE_ALL);
+}
+
+void LayersEditor::_on_layer_select_content(uint32_t p_layer_id) {
+    node::IsometricMap* current_map = IsometricEditorPlugin::get_instance()->get_selected_map();
+    if (!current_map) { return; }
+
+    Vector<Ref<commands::Command>> commands;
+    for (const Vector3& position : PositionableSelectorManager::get_singleton()->get_selected_for_map(current_map)) {
+        Ref<commands::SelectPositionableCommand> select_command;
+        select_command.instantiate();
+        select_command->set_position(position);
+
+        Ref<commands::RevertCommand> deselect_command;
+        deselect_command.instantiate();
+        deselect_command->set_reverse_command(select_command);
+        commands.push_back(deselect_command);
+    }
+
+    for (const Vector3& position : current_map->get_layer_positions(p_layer_id)) {
+        Ref<commands::SelectPositionableCommand> select_command;
+        select_command.instantiate();
+        select_command->set_position(position);
+        commands.push_back(select_command);
+    }
+
+    commands::Command::commit_as_action(commands, current_map, SELECT_LAYER_CONTENT_ACTION_NAME, UndoRedo::MERGE_DISABLE, true);
 }
 
 void LayersEditor::_on_remove_layer_button(uint32_t p_layer_id, const String& p_layer_name) {

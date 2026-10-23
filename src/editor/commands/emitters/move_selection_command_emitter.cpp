@@ -13,7 +13,6 @@
 using namespace godot;
 using namespace editor::commands::emitters;
 
-static const Color CONFLICT_MODULATE_COLOR(1, 0, 0, 0.5);
 static const Color DEFAULT_MODULATE_COLOR(1, 1, 1, 0.5);
 
 Vector<Ref<editor::commands::Command>> MoveSelectionCommandEmitter::from_gui_input_to_command(const Ref<InputEventMouse>& p_event) {
@@ -22,7 +21,10 @@ Vector<Ref<editor::commands::Command>> MoveSelectionCommandEmitter::from_gui_inp
     IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
     node::IsometricMap* map = isometric_editor_plugin->get_selected_map();
 
-    if (!p_event->is_shift_pressed()) {
+    bool is_activated = initial_mouse_position != Vector3(-1, -1, -1);
+
+    // Shift starts a move, which then goes on without it; a right click cancels it.
+    if (p_event->get_button_mask().has_flag(MOUSE_BUTTON_MASK_RIGHT) || (!p_event->is_shift_pressed() && !is_activated)) {
         for (const KeyValue<Vector3, node::IsometricPositionable*>& entry : current_preview_nodes) {
             if (node::IsometricPositionable* original = map->get_positionable_at(entry.key)) {
                 original->set_visible(true);
@@ -34,7 +36,6 @@ Vector<Ref<editor::commands::Command>> MoveSelectionCommandEmitter::from_gui_inp
     }
 
     Vector3 mouse_position = isometric_editor_plugin->get_mouse_position_3d();
-    bool is_activated = initial_mouse_position != Vector3(-1, -1, -1);
 
     if (Input::get_singleton()->is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) {
         is_move_valid = true;
@@ -63,13 +64,15 @@ Vector<Ref<editor::commands::Command>> MoveSelectionCommandEmitter::from_gui_inp
         for (const KeyValue<Vector3, node::IsometricPositionable*>& entry : current_preview_nodes) {
             node::IsometricPositionable* positionable = entry.value;
             Vector3 new_position = entry.key + position_delta;
+            AABB new_box(new_position, positionable->get_size());
 
-            bool overlaps_unmoved = map->get_positionable_at(new_position) && !current_preview_nodes.has(new_position);
-            if (overlaps_unmoved || !map->is_aabb_in_map(AABB(new_position, positionable->get_size()))) {
-                positionable->set_editor_modulate(CONFLICT_MODULATE_COLOR);
+            bool overlaps_unmoved = map->has_positionable_in(new_box, map->get_positionable_at(entry.key))
+                                 && !current_preview_nodes.has(new_position);
+            if (overlaps_unmoved || !map->is_aabb_in_map(new_box)) {
+                positionable->set_debug_modulate(node::IsometricPositionable::CONFLICT_MODULATE_COLOR);
                 is_move_valid = false;
             } else {
-                positionable->set_editor_modulate(DEFAULT_MODULATE_COLOR);
+                positionable->set_debug_modulate(DEFAULT_MODULATE_COLOR);
             }
 
             positionable->set_local_position_3d(new_position);

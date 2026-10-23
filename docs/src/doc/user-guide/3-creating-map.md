@@ -52,6 +52,12 @@ Note that you can delete selected positionables on map by using <kbd>⌫</kbd>.
 
 ![delete-tiles-gif]
 
+You can move selected positionables using <kbd>⇧ Shift</kbd> and left click drag and drop. You don't have to maintain
+<kbd>⇧ Shift</kbd> once you started moving.  
+To cancel movement, use right click.
+
+![move-tiles-gif]
+
 ### None
 
 In none mode, no input is forwarded to the plugin, in this mode you can use classic godot commands, like saving the
@@ -85,6 +91,7 @@ Those will set the limit on maximum, if you want to set minimum limit maintain <
 [drag-and-drop-mod-gif]: ./assets/creating-map/drag-and-drop-mod.gif
 [select-mod-gif]: ./assets/creating-map/select-mod.gif
 [delete-tiles-gif]: ./assets/creating-map/delete-tiles.gif
+[move-tiles-gif]: ./assets/creating-map/move-tiles.gif
 [edition-grid-moves-gif]: ./assets/creating-map/edition-grid-moves.gif
 [limit-view-gif]: ./assets/creating-map/limit-view.gif
 [layer-edition-gif]: ./assets/creating-map/layer-edition.gif

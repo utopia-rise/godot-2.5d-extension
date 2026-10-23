@@ -15,7 +15,8 @@ works"): read it before touching sorting.
 - `src/register_types.cpp` — entry point `isometric_maps_library_init`; registers runtime classes at the scene level and
   editor classes (plugins, commands, inspector panes) at the editor level.
 - `src/isometric_server.*` — `IsometricServer` engine singleton: spaces, elements, the sorting thread (see Threading).
-- `src/data/` — plain structs the server sorts (`IsometricElement`, `IsometricSpace`, `IsometricParameters`).
+- `src/data/` — plain structs the server sorts (`IsometricElement`, `IsometricSpace` split into 10 × 10 `Chunk`s,
+  `IsometricParameters`).
 - `src/utils/isometric_maths.h` — projection, hexagon overlap and "is in front" tests.
 - `src/containers/` — `Grid3D` (map grids) and `CommandQueue` (server thread commands).
 - `src/node/` — `IsometricPositionable` (a `Node2D` with a 3D box) and `IsometricMap` (a container instancing a grid).

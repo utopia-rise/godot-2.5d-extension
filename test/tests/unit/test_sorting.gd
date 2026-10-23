@@ -178,3 +178,40 @@ func test_large_grid_is_ordered_consistently() -> void:
 				assert_gt(z, z_of(grid[Vector2i(x - 1, y)]), "(%d, %d) over its x neighbour" % [x, y])
 			if y > 0:
 				assert_gt(z, z_of(grid[Vector2i(x, y - 1)]), "(%d, %d) over its y neighbour" % [x, y])
+
+
+# Spaces are split in 10 x 10 chunks; elements are only compared with the ones of neighboring chunks.
+func test_neighbors_across_a_chunk_border_are_sorted() -> void:
+	var behind := add_element(Vector3(9, 3, 0))
+	var front := add_element(Vector3(10, 3, 0))
+	sort()
+	assert_gt(z_of(front), z_of(behind))
+
+
+func test_diagonal_neighbors_across_chunk_corners_are_sorted() -> void:
+	var behind := add_element(Vector3(9, 9, 0), true)
+	var front := add_element(Vector3(10, 10, 0), true)
+	sort()
+	assert_gt(z_of(front), z_of(behind))
+
+
+func test_dynamic_element_moving_to_another_chunk_is_sorted_there() -> void:
+	var wall := add_element(Vector3(25, 3, 0))
+	var character := add_element(Vector3(5, 3, 0), true)
+	sort()
+	assert_eq(z_of(character), 0, "far from the wall")
+
+	IsometricServer.isometric_element_set_position(character, Vector3(26, 3, 0))
+	sort()
+	assert_gt(z_of(character), z_of(wall), "in front of the wall")
+
+	IsometricServer.isometric_element_set_position(character, Vector3(24, 3, 0))
+	sort()
+	assert_gt(z_of(wall), z_of(character), "behind the wall")
+
+
+func test_elements_at_negative_positions_are_sorted() -> void:
+	var behind := add_element(Vector3(-1, 0, 0))
+	var front := add_element(Vector3(0, 0, 0))
+	sort()
+	assert_gt(z_of(front), z_of(behind))

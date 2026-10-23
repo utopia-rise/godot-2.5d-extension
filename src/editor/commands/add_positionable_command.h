@@ -16,6 +16,8 @@ namespace editor::commands {
         AABB aabb;
         int positionable_id = resource::PositionableSet::NONE_POSITIONABLE_ID;
         uint32_t layer_id = node::IsometricMap::DEFAULT_LAYER_ID;
+        // Set once this command removed the positionable: re-adding it restores it even over a conflicting one.
+        bool restores_removed = false;
 
     public:
         void redo() override;

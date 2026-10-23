@@ -5,6 +5,7 @@
 
 #include "editor/commands/emitters/delete_command_emitter.h"
 #include "editor/commands/emitters/drag_and_drop_command_emitter.h"
+#include "editor/commands/emitters/fill_plan_command_emitter.h"
 #include "editor/commands/emitters/move_editor_grid_command_emitter.h"
 #include "editor/commands/emitters/move_editor_view_limiter_command_emitter.h"
 #include "editor/commands/emitters/move_selection_command_emitter.h"
@@ -38,7 +39,8 @@ namespace editor {
             NONE,
             SELECT,
             PAINT,
-            DRAG_AND_DROP
+            DRAG_AND_DROP,
+            FILL
         };
 
     private:
@@ -75,6 +77,7 @@ namespace editor {
         commands::emitters::DeleteCommandEmitter delete_command_emitter;
         commands::emitters::MoveSelectionCommandEmitter move_selection_command_emitter;
         commands::emitters::DragAndDropCommandEmitter drag_and_drop_command_emitter;
+        commands::emitters::FillPlanCommandEmitter fill_plan_command_emitter;
         commands::emitters::MoveEditorGridCommandEmitter move_editor_drawer_command_emitter;
         commands::emitters::RotateEditorPlaneCommandEmitter rotate_editor_plane_command_emitter;
         commands::emitters::MoveEditorViewLimiterCommandEmitter plane_view_limiter_command_emitter;
@@ -87,6 +90,7 @@ namespace editor {
         void _on_edition_mode_changed(int selected_index);
         void _on_plane_visibility_timeout(int p_plane_type);
         void _on_map_size_changed();
+        void _on_move_selection_to_current_layer();
         void _on_grid_color_picker_change(const Color& p_color);
 
         void _draw_edition_grid() const;
