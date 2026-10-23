@@ -1,8 +1,8 @@
 site_name: Isometric Map Module
 docs_dir: src/doc
 
-repo_name: 'utopia-rise/IsometricMapModule'
-repo_url: 'https://github.com/utopia-rise/IsometricMapModule'
+repo_name: 'utopia-rise/godot-2.5d-extension'
+repo_url: 'https://github.com/utopia-rise/godot-2.5d-extension'
 
 theme:
   name: material

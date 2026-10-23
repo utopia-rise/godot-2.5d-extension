@@ -18,7 +18,7 @@ User documentation: [isometricmapmodule.readthedocs.io](https://isometricmapmodu
 
 ## Installation
 
-Download `isometric_maps-x.y.z.zip` from the [releases](https://github.com/utopia-rise/IsometricMapModule/releases) and
+Download `isometric_maps-x.y.z.zip` from the [releases](https://github.com/utopia-rise/godot-2.5d-extension/releases) and
 unzip it at the root of your Godot 4.7 project: it adds `addons/isometric_maps/` with the libraries for Windows, Linux,
 macOS, Android and iOS.
 
