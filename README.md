@@ -84,7 +84,7 @@ Checks: `test_element_in_front_on_x_is_drawn_over`, `test_element_in_front_on_y_
 Each element keeps the list of elements behind it. Static/static edges are computed once, when a static element joins
 the space. Edges involving dynamic elements are rebuilt on every sort, since those elements move.
 
-Spaces are split into 10 × 10 chunks on x and y, and an element is only compared with the elements of its chunk and
+Spaces are split into 10 Ã— 10 chunks on x and y, and an element is only compared with the elements of its chunk and
 the 8 around it, so the cost of a sort grows with the density of a map rather than with its size.
 
 Checks: `test_dynamic_element_is_sorted_against_statics`, `test_dynamic_elements_are_sorted_together`,
