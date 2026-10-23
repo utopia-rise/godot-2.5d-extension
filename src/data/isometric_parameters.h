@@ -17,7 +17,8 @@ namespace data {
 
         IsometricParameters(int p_tile_width, int p_angle, float p_topological_margin);
 
-        static IsometricParameters getDefaultConfiguration();
+        static IsometricParameters get_default_configuration();
     };
 }// namespace data
+
 #endif// ISOMETRIC_MAPS_ISOMETRIC_PARAMETERS_H

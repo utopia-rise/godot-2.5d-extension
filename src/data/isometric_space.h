@@ -4,17 +4,18 @@
 #include "isometric_element.h"
 #include "isometric_parameters.h"
 
+#include <templates/local_vector.hpp>
+
 namespace data {
     struct IsometricSpace {
-        //////Set by commands (isometric server thread)//////
-        data::IsometricParameters configuration {data::IsometricParameters::getDefaultConfiguration()};
-        LocalVector<data::IsometricElement*> static_elements;
-        LocalVector<data::IsometricElement*> dynamic_elements;
+        //////// Main thread ////////
+        IsometricParameters configuration = IsometricParameters::get_default_configuration();
 
-        // Whether the space needs reordering or not.
+        //////// Server thread ////////
+        IsometricParameters sort_configuration = IsometricParameters::get_default_configuration();
+        godot::LocalVector<IsometricElement*> static_elements;
+        godot::LocalVector<IsometricElement*> dynamic_elements;
         bool dirty = false;
-        // Whether the space data were retrieved or not.
-        bool fetched = true;
 
         IsometricSpace() {
             static_elements.reserve(512);
