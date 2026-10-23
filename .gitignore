@@ -21,3 +21,7 @@ test/addons/isometric_maps/libs/
 # Godot
 .godot/
 *.translation
+
+# Recorded demo videos.
+*.mp4
+*.avi
