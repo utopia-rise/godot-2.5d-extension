@@ -4,32 +4,30 @@
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class RotateEditorPlaneCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    class RotateEditorPlaneCommand : public Command {
+        GDCLASS(RotateEditorPlaneCommand, Command)
 
-            void set_new_axis(Vector3::Axis p_axis);
-            void set_former_axis(Vector3::Axis p_axis);
-            void set_former_position(int p_position);
+    protected:
+        static void _bind_methods() {}
 
-            RotateEditorPlaneCommand();
-            ~RotateEditorPlaneCommand() override = default;
+    private:
+        Vector3::Axis new_axis = Vector3::AXIS_X;
+        Vector3::Axis former_axis = Vector3::AXIS_X;
+        int former_position = 0;
 
-        private:
-            void set_axis_and_position(Vector3::Axis p_axis, int p_position);
+        void set_axis_and_position(Vector3::Axis p_axis, int p_position);
 
-            Vector3::Axis new_axis;
+    public:
+        void redo() override;
+        void undo() override;
 
-            Vector3::Axis former_axis;
-            int former_position;
-        };
-    }// namespace commands
-}// namespace editor
+        void set_new_axis(Vector3::Axis p_axis);
+        void set_former_axis(Vector3::Axis p_axis);
+        void set_former_position(int p_position);
+    };
+}// namespace editor::commands
 
 #endif
 #endif// ISOMETRIC_MAPS_ROTATE_EDITOR_PLANE_COMMAND_H

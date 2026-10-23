@@ -4,29 +4,28 @@
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class AddPositionableCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    class AddPositionableCommand : public Command {
+        GDCLASS(AddPositionableCommand, Command)
 
-            void set_aabb(const AABB& p_aabb);
-            void set_positionable_id(int id);
-            void set_layer_id(uint32_t p_layer_id);
+    protected:
+        static void _bind_methods() {}
 
-            AddPositionableCommand();
-            ~AddPositionableCommand() override = default;
+    private:
+        AABB aabb;
+        int positionable_id = resource::PositionableSet::NONE_POSITIONABLE_ID;
+        uint32_t layer_id = node::IsometricMap::DEFAULT_LAYER_ID;
 
-        private:
-            AABB aabb;
-            int positionable_id;
-            uint32_t layer_id;
-        };
-    }// namespace commands
-}// namespace editor
+    public:
+        void redo() override;
+        void undo() override;
+
+        void set_aabb(const AABB& p_aabb);
+        void set_positionable_id(int p_id);
+        void set_layer_id(uint32_t p_layer_id);
+    };
+}// namespace editor::commands
 
 #endif
 #endif// ISOMETRIC_MAPS_ADD_POSITIONABLE_COMMAND_H

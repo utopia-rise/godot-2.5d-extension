@@ -4,32 +4,29 @@
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class SelectPositionableCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    // Toggles the selection of the positionable at a position.
+    class SelectPositionableCommand : public Command {
+        GDCLASS(SelectPositionableCommand, Command)
 
-            void set_position(const Vector3& p_position);
-            void set_should_deselect_first(bool p_should);
+    protected:
+        static void _bind_methods() {}
 
-            SelectPositionableCommand();
-            ~SelectPositionableCommand() override = default;
+    private:
+        Vector3 position;
+        bool should_deselect_first = false;
 
-        private:
-            Vector3 position;
-            bool should_deselect_first;
+        Vector<Vector3> selected_cache;
 
-            Vector<Vector3> selected_cache;
+    public:
+        void redo() override;
+        void undo() override;
 
-        public:
-            static void _bind_methods_impl();
-        };
-    }// namespace commands
-}// namespace editor
+        void set_position(const Vector3& p_position);
+        void set_should_deselect_first(bool p_should);
+    };
+}// namespace editor::commands
 
 #endif
 #endif// ISOMETRIC_MAPS_SELECT_POSITIONABLE_COMMAND_H
