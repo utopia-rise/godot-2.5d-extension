@@ -4,25 +4,25 @@
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class SetPositionableVisibilityCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    // Toggles the visibility of the positionable at a position, so undo is the same operation as redo.
+    class SetPositionableVisibilityCommand : public Command {
+        GDCLASS(SetPositionableVisibilityCommand, Command)
 
-            void set_position(const Vector3& p_position);
+    protected:
+        static void _bind_methods() {}
 
-            SetPositionableVisibilityCommand();
-            ~SetPositionableVisibilityCommand() override = default;
+    private:
+        Vector3 position;
 
-        private:
-            Vector3 position;
-        };
-    }// namespace commands
-}// namespace editor
+    public:
+        void redo() override;
+        void undo() override;
+
+        void set_position(const Vector3& p_position);
+    };
+}// namespace editor::commands
 
 #endif
 #endif// ISOMETRIC_MAPS_SET_POSITIONABLE_VISIBILITY_COMMAND_H

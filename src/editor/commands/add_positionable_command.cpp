@@ -1,40 +1,35 @@
 #ifdef TOOLS_ENABLED
+
 #include "add_positionable_command.h"
 
-#include "editor/isometric_editor_plugin.h"
-
+using namespace godot;
 using namespace editor::commands;
 
 void AddPositionableCommand::redo() {
-    if (is_overlapping) {
+    if (restores_removed) {
         context_node->add_positionable(aabb.position, positionable_id, layer_id);
     } else {
         context_node->add_positionable_if_nothing_present(aabb, positionable_id, layer_id);
     }
-    Command<node::IsometricMap>::redo();
+    Command::redo();
 }
 
 void AddPositionableCommand::undo() {
-    is_overlapping = context_node->is_overlapping(aabb);
+    restores_removed = context_node->is_overlapping(aabb);
     context_node->remove_positionable(aabb);
-    Command<node::IsometricMap>::undo();
+    Command::undo();
 }
 
 void AddPositionableCommand::set_aabb(const AABB& p_aabb) {
     aabb = p_aabb;
 }
 
-void AddPositionableCommand::set_positionable_id(int id) {
-    positionable_id = id;
+void AddPositionableCommand::set_positionable_id(int p_id) {
+    positionable_id = p_id;
 }
 
 void AddPositionableCommand::set_layer_id(uint32_t p_layer_id) {
     layer_id = p_layer_id;
 }
-
-AddPositionableCommand::AddPositionableCommand() :
-  positionable_id(resource::PositionableSet::NONE_POSITIONABLE_ID),
-  layer_id(node::IsometricMap::DEFAULT_LAYER_ID),
-  is_overlapping(false) {}
 
 #endif

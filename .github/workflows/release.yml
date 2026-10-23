@@ -1,0 +1,45 @@
+name: Release
+
+# Pushing a version tag (x.y.z) builds every platform and publishes the addon as a GitHub release.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    name: Package and release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: libs-*
+          path: test/addons/isometric_maps/libs/
+          merge-multiple: true
+
+      - name: Package the addon
+        run: |
+          name="isometric_maps-${{ github.ref_name }}"
+          cd test
+          zip -qr "../$name.zip" addons/isometric_maps -x "*.uid"
+          cd ..
+          unzip -l "$name.zip"
+
+      - name: Create the GitHub release
+        run: |
+          gh release create "${{ github.ref_name }}" "isometric_maps-${{ github.ref_name }}.zip" \
+            --title "${{ github.ref_name }}" \
+            --notes "Isometric Maps ${{ github.ref_name }} for Godot 4.7.
+
+          Unzip into your project root: it holds \`addons/isometric_maps/\` with the libraries for Windows, Linux, macOS, Android and iOS (editor, debug and release builds)."

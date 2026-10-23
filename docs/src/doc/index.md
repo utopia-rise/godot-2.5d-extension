@@ -1,6 +1,6 @@
 [![GitHub](https://img.shields.io/github/license/utopia-rise/godot-2.5D-isometric-map-editor?style=flat-square)](LICENSE)
 
-A Godot module to create complex 2.5D Isometric Map.  
+A Godot 4.7 GDExtension to create complex 2.5D isometric maps.  
 
 Classic tiled map does not permit to create complex isometric map with 3D logic. This tool is designed so. Here
 every basic node is an `IsometricPositionable`, which means it has 3D coordinated and size (an `AABB`). Then a

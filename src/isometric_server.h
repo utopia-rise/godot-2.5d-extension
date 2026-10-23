@@ -1,52 +1,72 @@
 #ifndef ISOMETRIC_MAPS_ISOMETRIC_SERVER_H
 #define ISOMETRIC_MAPS_ISOMETRIC_SERVER_H
 
-#include "core/object/object.h"
-#include "core/object/class_db.h"
-#include "core/os/spin_lock.h"
-#include "core/templates/command_queue_mt.h"
-#include "core/templates/local_vector.h"
-#include "core/templates/rid_owner.h"
+#include "containers/command_queue.h"
 #include "data/isometric_element.h"
 #include "data/isometric_space.h"
-#include "logging.h"
+#include "resource/isometric_configuration.h"
 
-#include <core/os/thread.h>
+#include <atomic>
+#include <classes/object.hpp>
+#include <classes/worker_thread_pool.hpp>
+#include <core/class_db.hpp>
+#include <mutex>
+#include <templates/local_vector.hpp>
+#include <templates/rid_owner.hpp>
+#include <variant/aabb.hpp>
+#include <variant/color.hpp>
+#include <variant/rid.hpp>
 
 #define ISOMETRIC_SERVER IsometricServer::get_instance()
 
-class IsometricServer : public Object {
-    GDCLASS(IsometricServer, Object);
+// Sorts isometric elements by depth. Like the engine servers (rendering, physics), it owns a dedicated thread: a
+// high-priority WorkerThreadPool task consuming a command queue. The main thread only allocates RIDs and pushes
+// commands; every sort runs on the server thread, and the main thread applies the resulting z-indices to the
+// RenderingServer right before a frame is drawn.
+class IsometricServer : public godot::Object {
+    GDCLASS(IsometricServer, godot::Object);
 
-private:
-    static IsometricServer* _instance;
-
-    Thread thread;
-    CommandQueueMT command_queue;
-
-    enum RequestType {
-        SYNC,
-        ASYNC_REQUESTED,
-        ASYNC_DONE
+    struct SortResult {
+        godot::RID element;
+        int z_order;
+        bool is_invalid;
     };
 
-    mutable RID_PtrOwner<data::IsometricSpace> worlds_owner = 0;
-    mutable RID_PtrOwner<data::IsometricElement> elements_owner = 0;
+    static IsometricServer* singleton;
 
-    LocalVector<data::IsometricSpace*> worlds;
+    containers::CommandQueue command_queue;
+    godot::WorkerThreadPool::TaskID server_task_id = -1;
+    bool exit_thread = false;
 
-    LocalVector<data::IsometricElement*> stack;
+    bool synchronous = false;
+    std::atomic<bool> sort_in_flight = false;
+    bool is_debug = false;
 
-    RequestType state;
-    mutable bool exit_thread;
-    bool is_debug;
+    godot::RID_PtrOwner<data::IsometricSpace> spaces_owner;
+    godot::RID_PtrOwner<data::IsometricElement> elements_owner;
 
-    static void iteration(void* p_udata);
+    // Server thread.
+    godot::LocalVector<data::IsometricSpace*> spaces;
+    godot::LocalVector<data::IsometricElement*> stack;
+    godot::LocalVector<SortResult> produced_results;
+
+    // Handed from the server thread to the main thread.
+    std::mutex results_mutex;
+    godot::LocalVector<SortResult> available_results;
+
+    // Main thread.
+    godot::LocalVector<SortResult> applied_results;
+
+    static void thread_loop(void* p_server);
+
+    void hook_into_main_loop();
+    void stop_thread();
+
+    void apply_sort_results();
 
 public:
     IsometricServer();
-
-    ~IsometricServer() = default;
+    ~IsometricServer() override = default;
 
     IsometricServer(const IsometricServer&) = delete;
 
@@ -54,95 +74,71 @@ public:
     static IsometricServer* get_instance();
     static void terminate_server();
 
-    static void _bind_methods();
+    ///////////////////////// PUBLIC API /////////////////////////
 
-    /////////////////////////PUBLIC API////////////////////////////////////
+    // SPACE
+    godot::RID space_create();
+    void space_attach_isometric_element(const godot::RID& space_rid, const godot::RID& element_rid);
+    void space_detach_isometric_element(const godot::RID& element_rid);
+    void space_update_configuration(const godot::RID& space_rid, const godot::Ref<resource::IsometricConfiguration>& p_configuration);
+    const data::IsometricParameters* space_get_configuration(const godot::RID& space_rid);
+    int space_get_diamond_width(const godot::RID& space_rid);
+    int space_get_diamond_height(const godot::RID& space_rid);
+    float space_get_z_length(const godot::RID& space_rid);
 
-    /// SPACE
-    RID space_create();
-    void space_attach_isometric_element(const RID space_rid, RID element_rid);
-    void space_detach_isometric_element(RID element_rid);
-    void space_update_configuration(const RID space_rid, RID conf_RID);
-    const data::IsometricParameters* space_get_configuration(const RID space_rid);
-    int space_get_diamond_width(const RID space_rid);
-    int space_get_diamond_height(const RID space_rid);
-    float space_get_z_length(const RID space_rid);
-
-    /// ISOMETRIC ELEMENT
-    RID isometric_element_create(bool is_dynamic, AABB aabb = AABB());
-    void isometric_element_attach_canvas_item(const RID element_rid, const RID canvas_rid, const int depth = 1);
-    void isometric_element_detach_canvas_item(const RID element_rid);
-    void isometric_element_set_position(const RID element_rid, const Vector3 global_position);
-    void isometric_element_set_size(const RID element_rid, const Vector3 size);
-    void isometric_element_set_depth(const RID element_rid, const int depth);
+    // ISOMETRIC ELEMENT
+    godot::RID isometric_element_create(bool is_dynamic, const godot::AABB& aabb = godot::AABB());
+    void isometric_element_attach_canvas_item(const godot::RID& element_rid, const godot::RID& canvas_rid, int depth = 1);
+    void isometric_element_detach_canvas_item(const godot::RID& element_rid);
+    void isometric_element_set_position(const godot::RID& element_rid, const godot::Vector3& global_position);
+    void isometric_element_set_size(const godot::RID& element_rid, const godot::Vector3& size);
+    void isometric_element_set_depth(const godot::RID& element_rid, int depth);
+    int isometric_element_get_z_order(const godot::RID& element_rid);
 
 #ifdef DEBUG_ENABLED
-    void isometric_element_set_debug_modulate(const RID element_rid, const Color color);
+    void isometric_element_set_debug_modulate(const godot::RID& element_rid, const godot::Color& color);
 #endif
 
-    /// ORDERING
+    // ORDERING
     void fetch_data_and_request_ordering();
     void set_synchronous_mode(bool sync);
+    bool is_synchronous_mode() const;
 
-    /// DELETE
-    void free_rid(RID rid);
+    // DELETE
+    void free_rid(const godot::RID& rid);
 
-    /// UTILITIES
+    // UTILITIES
     void set_debug(bool p_debug);
 
 private:
-    /////////////////////////THREAD COMMANDS/////////////////////////////////////
+    ///////////////////////// SERVER THREAD COMMANDS /////////////////////////
     void command_space_create(data::IsometricSpace* space);
     void command_space_attach_isometric_element(data::IsometricSpace* space, data::IsometricElement* element);
     void command_space_detach_isometric_element(data::IsometricElement* element);
+    void command_space_set_configuration(data::IsometricSpace* space, data::IsometricParameters configuration);
     void command_space_delete(data::IsometricSpace* space);
 
-    void command_isometric_element_create(data::IsometricElement* element, bool p_is_dynamic);
-    void command_isometric_element_attach_canvas_item(data::IsometricElement* element, const RID canvas_rid);
-    void command_isometric_element_detach_canvas_item(data::IsometricElement* element);
-    void command_isometric_element_set_position(data::IsometricElement* element, const Vector3 global_position);
-    void command_isometric_element_set_size(data::IsometricElement* element, const Vector3 size);
-    void command_isometric_element_set_depth(data::IsometricElement* element, const int depth);
+    void command_isometric_element_set_position(data::IsometricElement* element, godot::Vector3 global_position);
+    void command_isometric_element_set_size(data::IsometricElement* element, godot::Vector3 size);
+    void command_isometric_element_set_depth(data::IsometricElement* element, int depth);
+    void command_isometric_element_mark_dirty(data::IsometricElement* element);
     void command_isometric_element_delete(data::IsometricElement* element);
 
     void command_isometric_sort();
-    void generate_topological_sorting_graph(data::IsometricSpace* p_isometric_space);
-    void sort_isometric_element(data::IsometricElement* data);
-    _FORCE_INLINE_ int calculate_z_order(data::IsometricElement* element_behind, int current_z_order);
+    void generate_topological_sorting_graph(data::IsometricSpace* p_space);
+    void sort_isometric_element(data::IsometricElement* p_element);
+    int calculate_z_order(data::IsometricElement* element_behind, int current_z_order);
+    void produce_result(data::IsometricElement* element);
+    void produce_results(data::IsometricSpace* p_space);
 
-    void command_update_visual_server();
     void command_set_debug(bool p_debug);
     void command_stop_server();
 
-#ifdef DEBUG_ENABLED
-    void command_set_debug_modulate(data::IsometricElement* element, const Color color);
-#endif
+    static void detach_from_space(data::IsometricElement* element);
+    static data::Chunk* get_or_create_chunk(data::IsometricSpace* space, const godot::Vector3& position);
 
-    ///////////////UTILITIES/////////
-
-    static data::Chunk* get_or_create_chunk(data::IsometricSpace* space, Vector3 position);
-
-#define GET_ELEMENT_RID_DATA_WITH_RET(element, element_rid, ret)                                     \
-    if (!elements_owner.owns(element_rid)) {                                                         \
-        LOG_WARNING(vformat("This is not a valid isometric element RID: %s", element_rid.get_id())); \
-        return ret;                                                                                  \
-    }                                                                                                \
-    IsometricElement* element {elements_owner.get_or_null(element_rid)};                                     \
-    do {                                                                                             \
-    } while (false)
-
-#define GET_ELEMENT_RID_DATA(element, element_rid) GET_ELEMENT_RID_DATA_WITH_RET(element, element_rid, void())
-
-#define GET_SPACE_RID_DATA_WITH_RET(space, space_rid, ret)                                         \
-    if (!worlds_owner.owns(space_rid)) {                                                           \
-        LOG_WARNING(vformat("This is not a valid isometric element RID: %s", space_rid.get_id())); \
-        return ret;                                                                                \
-    }                                                                                              \
-    IsometricSpace* space {worlds_owner.get_or_null(space_rid)};                                           \
-    do {                                                                                           \
-    } while (false)
-
-#define GET_SPACE_RID_DATA(element, element_rid) GET_SPACE_RID_DATA_WITH_RET(element, element_rid, void())
+protected:
+    static void _bind_methods();
 };
 
 #endif// ISOMETRIC_MAPS_ISOMETRIC_SERVER_H

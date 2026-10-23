@@ -2,8 +2,9 @@
 
 #include "editor_plane.h"
 
-#include "servers/rendering_server.h"
+#include <classes/rendering_server.hpp>
 
+using namespace godot;
 using namespace editor;
 
 EditorPlane::EditorPlane(int p_position, Vector3::Axis p_axis, const Vector2& p_size) :

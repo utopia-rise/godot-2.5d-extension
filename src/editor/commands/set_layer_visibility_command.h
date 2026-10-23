@@ -4,28 +4,26 @@
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class SetLayerVisibilityCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    class SetLayerVisibilityCommand : public Command {
+        GDCLASS(SetLayerVisibilityCommand, Command)
 
-            void set_layer_id(uint32_t p_layer_id);
-            void set_visible(bool p_is_visible);
+    protected:
+        static void _bind_methods() {}
 
-            SetLayerVisibilityCommand();
-            ~SetLayerVisibilityCommand() override = default;
+    private:
+        uint32_t layer_id = node::IsometricMap::DEFAULT_LAYER_ID;
+        bool is_visible = false;
 
-        private:
-            uint32_t layer_id;
-            bool is_visible;
-        };
-    }
-}
+    public:
+        void redo() override;
+        void undo() override;
+
+        void set_layer_id(uint32_t p_layer_id);
+        void set_visible(bool p_is_visible);
+    };
+}// namespace editor::commands
 
 #endif
-
-#endif //ISOMETRIC_MAPS_SET_LAYER_VISIBILITY_COMMAND_H
+#endif// ISOMETRIC_MAPS_SET_LAYER_VISIBILITY_COMMAND_H

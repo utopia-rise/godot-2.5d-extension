@@ -5,7 +5,11 @@
 #include "node/isometric_positionable.h"
 #include "resource/positionable_set.h"
 
+#include <templates/hash_map.hpp>
+#include <variant/dictionary.hpp>
+
 namespace node {
+    using namespace godot;
 
     class IsometricMap : public IsometricPositionable {
         GDCLASS(IsometricMap, IsometricPositionable);
@@ -26,80 +30,74 @@ namespace node {
         containers::Grid3D<IsometricPositionable*, nullptr> instances_grid_3d;
 
 #ifdef DEBUG_ENABLED
-        HashMap<Vector3, Vector<node::IsometricPositionable*>> conflict_instances_map;
+        // Positionables whose boxes overlap, by cell of the grid; both sides are tinted until one is removed.
+        HashMap<Vector3, Vector<IsometricPositionable*>> conflict_instances_map;
+
+        void append_conflict_instance(const Vector3& p_position, IsometricPositionable* p_positionable);
 #endif
 
         Ref<resource::PositionableSet> positionable_set;
-        bool child_positionable_initialized;
+        bool child_positionable_initialized = false;
         Dictionary layers;
         HashMap<uint32_t, StringName> layers_groups;
 
 #ifdef TOOLS_ENABLED
-        uint32_t last_layer_id;
+        uint32_t last_layer_id = 0;
 #endif
 
-        void _enter_tree() override;
         Array _get_grid_3d() const;
         void _set_grid_3d(const Array& array);
         Array _get_layers_grid_3d() const;
         void _set_layers_grid_3d(const Array& array);
         void add_positionable_as_child(int positionable_id, const Vector3& p_position, uint32_t layer_id);
 
-#ifdef DEBUG_ENABLED
-        void append_conflict_instance(const Vector3& p_position, node::IsometricPositionable* p_positionable);
-#endif
+    protected:
+        void on_enter_tree() override;
+
+        static void _bind_methods();
 
     public:
-        Ref<resource::PositionableSet> get_positionable_set() const;
-        void set_positionable_set(const Ref<resource::PositionableSet>& set);
+        IsometricMap();
+        ~IsometricMap() override = default;
 
-        const Dictionary& get_layers() const;
+        Ref<resource::PositionableSet> get_positionable_set() const;
+        void set_positionable_set(const Ref<resource::PositionableSet>& p_set);
+
+        Dictionary get_layers() const;
         void set_layers(const Dictionary& p_layers);
 
+        IsometricPositionable* get_positionable_at(const Vector3& p_position) const;
+        int get_positionable_id_for_position(const Vector3& p_position) const;
+        uint32_t get_layer_id_at(const Vector3& p_position) const;
+        void set_size(const Vector3& p_size) override;
+        bool is_aabb_in_map(const AABB& aabb) const;
+        bool is_overlapping(const AABB& aabb) const;
+
 #ifdef TOOLS_ENABLED
-        void add_positionable(const Vector3& position, int id, uint32_t layer_id);
+        // Adds the positionable even over others; the overlapping ones are tinted as conflicts in debug builds.
+        void add_positionable(const Vector3& p_position, int id, uint32_t layer_id);
         void add_positionable_if_nothing_present(const AABB& aabb, int id, uint32_t layer_id);
         void remove_positionable(const AABB& aabb);
-        IsometricPositionable* get_positionable_at(const Vector3& p_position);
-        int get_positionable_id_for_position(const Vector3& p_position);
         Vector<IsometricPositionable*> get_positionables_in(const AABB& p_aabb) const;
-        bool has_positionable_in(const AABB& p_aabb, node::IsometricPositionable* p_excluded = nullptr) const;
-        void set_layer_id_at(const Vector3& p_position, uint32_t p_layer_id);
-        bool is_aabb_in_map(const AABB& aabb) const;
-        void set_size(Vector3 p_size) override;
-        bool is_overlapping(const AABB& aabb) const;
+        bool has_positionable_in(const AABB& p_aabb, IsometricPositionable* p_excluded = nullptr) const;
+        Vector<Vector3> get_connected_free_positions(const Vector3& p_start, Vector3::Axis p_axis, const Vector3& p_unit_size) const;
         uint32_t add_layer(const String& p_layer, uint32_t p_layer_id = NO_LAYER_ID);
         void remove_layer(uint32_t p_layer_id);
         void remove_layer(const String& p_layer_name);
+        String get_layer_name(uint32_t p_layer_id) const;
         void set_layer_name(uint32_t p_layer_id, const String& p_layer_name);
-        String get_layer_name(uint32_t p_layer_id);
-        uint32_t get_layer_id_at(const Vector3& p_position);
+        void set_layer_id_at(const Vector3& p_position, uint32_t p_layer_id);
+        Vector<Vector3> get_layer_positions(uint32_t p_layer_id) const;
         uint32_t get_last_layer_id() const;
         void set_last_layer_id(uint32_t p_last_layer_id);
         void set_layer_visible(uint32_t p_layer_id, bool is_visible);
         void set_layer_color(uint32_t p_layer_id, const Color& p_color);
-        Vector<Vector3> get_layer_positions(uint32_t p_layer_id) const;
-
-        template<bool (*condition)(node::IsometricPositionable*)>
-        Vector<Vector3> dfs(const Vector3& p_starting_position, Vector3::Axis p_axis, const Vector3& p_unit_size) const;
 #endif
+
 #ifdef DEBUG_ENABLED
-        void set_debug_modulate(const Color &p_modulate) const override;
+        void set_debug_modulate(const Color& p_modulate) override;
 #endif
-
-        IsometricMap();
-
-        ~IsometricMap() override = default;
-
-    protected:
-        static void _bind_methods();
     };
-
-#ifdef TOOLS_ENABLED
-    template<bool (*condition)(node::IsometricPositionable*)>
-    Vector<Vector3> IsometricMap::dfs(const Vector3& p_starting_position, Vector3::Axis p_axis, const Vector3& p_unit_size) const {
-        return instances_grid_3d.dfs<condition>(p_starting_position, p_axis, p_unit_size);
-    }
-#endif
 }// namespace node
+
 #endif// ISOMETRIC_MAPS_ISOMETRIC_MAP_H

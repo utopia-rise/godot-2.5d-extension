@@ -2,50 +2,45 @@
 #define ISOMETRIC_MAPS_POSITIONABLE_SELECTION_PANE_H
 
 #ifdef TOOLS_ENABLED
+
 #include "resource/positionable_set.h"
 
-#include <scene/gui/item_list.h>
-#include <scene/gui/label.h>
-#include <scene/gui/option_button.h>
-#include <scene/gui/panel.h>
-#include <scene/gui/split_container.h>
+#include <classes/button.hpp>
+#include <classes/h_box_container.hpp>
+#include <classes/item_list.hpp>
+#include <classes/option_button.hpp>
+#include <classes/v_split_container.hpp>
 
-namespace editor {
-    namespace inspector {
-        class PositionableSelectionPane : public VSplitContainer {
-            GDCLASS(PositionableSelectionPane, VSplitContainer)
+namespace editor::inspector {
+    using namespace godot;
 
-        public:
-            void set_positionable_set(const Ref<resource::PositionableSet>& set);
-            int get_selected_positionable_id() const;
+    // Bottom panel listing the positionables of the edited map's set, by category, to pick the one to paint.
+    class PositionableSelectionPane : public VSplitContainer {
+        GDCLASS(PositionableSelectionPane, VSplitContainer)
 
-            void refresh_path_selector();
+        HBoxContainer* top_container;
+        OptionButton* category_selector;
+        Button* refresh_button;
+        ItemList* item_list;
 
-            PositionableSelectionPane();
-            ~PositionableSelectionPane() override;
+        Ref<resource::PositionableSet> positionable_set;
 
-        protected:
-            void _notification(int notif);
+        void _select_item_from_path_selector(int index);
+        void _refresh_icons();
 
-        private:
-            HSplitContainer* top_container;
-            OptionButton* category_selector;
-            Button* refresh_button;
-            ItemList* item_list;
+    protected:
+        static void _bind_methods() {}
 
-            Ref<resource::PositionableSet> positionable_set;
+    public:
+        void set_positionable_set(const Ref<resource::PositionableSet>& p_set);
+        int get_selected_positionable_id() const;
 
-            void _ready();
-            void _select_item_from_path_selector(int index);
+        void refresh_path_selector();
 
-            void _refresh_icons();
-
-        public:
-            static void _bind_methods();
-        };
-
-    }// namespace inspector
-}// namespace editor
+        PositionableSelectionPane();
+        ~PositionableSelectionPane() override;
+    };
+}// namespace editor::inspector
 
 #endif
 #endif// ISOMETRIC_MAPS_POSITIONABLE_SELECTION_PANE_H

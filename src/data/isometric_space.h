@@ -5,20 +5,31 @@
 #include "isometric_element.h"
 #include "isometric_parameters.h"
 
+#include <templates/hash_map.hpp>
+#include <templates/local_vector.hpp>
+#include <variant/vector2i.hpp>
+
 namespace data {
     struct IsometricSpace {
-        //////Set by commands (isometric server thread)//////
-        data::IsometricParameters configuration {data::IsometricParameters::getDefaultConfiguration()};
-        HashMap<Vector2i, Chunk> chunks;
-        LocalVector<IsometricElement*> statics_elements;
-        LocalVector<IsometricElement*> dynamics_elements;
+        // Elements are only compared with the ones of the neighboring chunks, so an element larger than a chunk on x
+        // or y can miss some of the elements it overlaps.
+        static constexpr int CHUNK_SIZE = 10;
 
-        Vector2i cell_size = Vector2i(10, 10);
+        //////// Main thread ////////
+        IsometricParameters configuration = IsometricParameters::get_default_configuration();
 
-        // Whether the space needs reordering or not.
+        //////// Server thread ////////
+        IsometricParameters sort_configuration = IsometricParameters::get_default_configuration();
+        godot::LocalVector<IsometricElement*> static_elements;
+        godot::LocalVector<IsometricElement*> dynamic_elements;
+        // HashMap allocates its elements one by one, so chunk pointers stay valid as chunks are added.
+        godot::HashMap<godot::Vector2i, Chunk> chunks;
         bool dirty = false;
-        // Whether the space data were retrieved or not.
-        bool fetched = true;
+
+        IsometricSpace() {
+            static_elements.reserve(512);
+            dynamic_elements.reserve(32);
+        }
     };
 }// namespace data
 

@@ -2,29 +2,21 @@
 #define ISOMETRIC_MAPS_SELECT_ALL_COMMAND_EMITTER_H
 
 #ifdef TOOLS_ENABLED
+
 #include "command_emitter.h"
-#include "core/input/input_event.h"
-#include "editor/commands/command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
-            static constexpr const char select_all_action_name[]{"Select all isometric elements"};
+#include <classes/input_event_key.hpp>
 
-            class SelectAllCommandEmitter : public CommandEmitter<SelectAllCommandEmitter, InputEventKey, node::IsometricMap, select_all_action_name> {
-                friend class CommandEmitter<SelectAllCommandEmitter, InputEventKey, node::IsometricMap, select_all_action_name>;
+namespace editor::commands::emitters {
+    class SelectAllCommandEmitter : public CommandEmitter<SelectAllCommandEmitter, InputEventKey> {
+        friend class CommandEmitter<SelectAllCommandEmitter, InputEventKey>;
 
-            public:
-                SelectAllCommandEmitter() = default;
-                ~SelectAllCommandEmitter() = default;
+        Vector<Ref<Command>> from_gui_input_to_command(const Ref<InputEventKey>& p_event);
 
-            private:
-                Vector<Ref<Command<node::IsometricMap>>> from_gui_input_to_command_impl(Ref<InputEventKey> p_event);
-            };
-        }// namespace emitters
-    }// namespace commands
-}// namespace editor
+    public:
+        SelectAllCommandEmitter() : CommandEmitter("Select all isometric elements") {}
+    };
+}// namespace editor::commands::emitters
 
 #endif
 #endif// ISOMETRIC_MAPS_SELECT_ALL_COMMAND_EMITTER_H

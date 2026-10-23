@@ -2,14 +2,11 @@
 
 #include "outline_data.h"
 
-#include "servers/rendering_server.h"
+#include <classes/rendering_server.hpp>
 
+using namespace godot;
 using namespace editor;
 
-OutlineData::OutlineData() :
-  rid(RenderingServer::get_singleton()->canvas_item_create()),
-  is_visible(false),
-  line_size(),
-  should_draw_polygons(false) {}
+OutlineData::OutlineData() : rid(RenderingServer::get_singleton()->canvas_item_create()) {}
 
 #endif

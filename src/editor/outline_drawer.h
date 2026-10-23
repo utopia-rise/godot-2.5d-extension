@@ -9,7 +9,6 @@ namespace editor {
     class OutlineDrawer {
     public:
         static void draw_outline(node::IsometricPositionable* positionable);
-
         static void set_outline_visible(node::IsometricPositionable* positionable, bool visible);
     };
 }// namespace editor

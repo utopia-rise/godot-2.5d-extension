@@ -2,18 +2,17 @@
 
 #include "move_to_layer_command.h"
 
+using namespace godot;
 using namespace editor::commands;
 
 void MoveToLayerCommand::redo() {
     context_node->set_layer_id_at(position, new_layer_id);
-
-    Command<node::IsometricMap>::redo();
+    Command::redo();
 }
 
 void MoveToLayerCommand::undo() {
     context_node->set_layer_id_at(position, former_layer_id);
-
-    Command<node::IsometricMap>::undo();
+    Command::undo();
 }
 
 void MoveToLayerCommand::set_position(const Vector3& p_position) {

@@ -1,7 +1,27 @@
 .idea
+.vscode
 __pycache__
 cmake-build-debug
-**/*.obj
-**/*.o
-/demo/.import/
+build/
+*.obj
+*.o
+*.os
+*.pdb
+*.exp
+*.ilk
+*.lib
+*.a
+*.sconsign.dblite
+compile_commands.json
 *.DS_Store
+
+# Built by SCons straight into the test project.
+test/addons/isometric_maps/libs/
+
+# Godot
+.godot/
+*.translation
+
+# Recorded demo videos.
+*.mp4
+*.avi

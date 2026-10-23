@@ -1,0 +1,95 @@
+name: Build
+
+# Compiles the extension for every platform and target, uploads each library as an artifact, then runs the unit tests
+# of the test project against the Linux editor library.
+on:
+  workflow_call:
+
+env:
+  GODOT_VERSION: 4.7.2
+  ANDROID_NDK_VERSION: 28.1.13356709
+
+jobs:
+  build:
+    name: ${{ matrix.platform }} ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows, target: editor, os: windows-2022 }
+          - { platform: windows, target: template_debug, os: windows-2022 }
+          - { platform: windows, target: template_release, os: windows-2022 }
+          - { platform: linux, target: editor, os: ubuntu-22.04 }
+          - { platform: linux, target: template_debug, os: ubuntu-22.04 }
+          - { platform: linux, target: template_release, os: ubuntu-22.04 }
+          - { platform: macos, target: editor, os: macos-15, flags: arch=universal }
+          - { platform: macos, target: template_debug, os: macos-15, flags: arch=universal }
+          - { platform: macos, target: template_release, os: macos-15, flags: arch=universal }
+          - { platform: ios, target: template_debug, os: macos-15, flags: arch=arm64 }
+          - { platform: ios, target: template_release, os: macos-15, flags: arch=arm64 }
+          - { platform: android, target: template_debug, os: ubuntu-22.04, flags: arch=arm64 }
+          - { platform: android, target: template_release, os: ubuntu-22.04, flags: arch=arm64 }
+          - { platform: android, target: template_debug, os: ubuntu-22.04, flags: arch=x86_64 }
+          - { platform: android, target: template_release, os: ubuntu-22.04, flags: arch=x86_64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install scons
+
+      - name: Install Android NDK
+        if: matrix.platform == 'android'
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ANDROID_NDK_VERSION"
+
+      - name: Compile
+        shell: bash
+        run: scons platform=${{ matrix.platform }} target=${{ matrix.target }} ${{ matrix.flags }} -j4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libs-${{ matrix.platform }}-${{ matrix.target }}-${{ strategy.job-index }}
+          path: |
+            test/addons/isometric_maps/libs/
+            !test/addons/isometric_maps/libs/**/*.exp
+            !test/addons/isometric_maps/libs/**/*.lib
+            !test/addons/isometric_maps/libs/**/*.pdb
+          if-no-files-found: error
+
+  test:
+    name: Unit tests
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: libs-linux-editor-*
+          path: test/addons/isometric_maps/libs/
+          merge-multiple: true
+
+      - name: Download Godot
+        run: |
+          curl -sSLo godot.zip "https://github.com/godotengine/godot-builds/releases/download/$GODOT_VERSION-stable/Godot_v$GODOT_VERSION-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v$GODOT_VERSION-stable_linux.x86_64" godot
+          chmod +x godot
+
+      # Declaring the extension loads it at startup: a fresh project would load it late, during the first scan, and
+      # Godot then crashes on exit (see CLAUDE.md, Known issues).
+      - name: Import the test project
+        run: |
+          mkdir -p test/.godot
+          echo "res://addons/isometric_maps/isometric_maps.gdextension" > test/.godot/extension_list.cfg
+          ./godot --headless --path test --import
+
+      - name: Run the unit tests
+        run: ./godot --headless --path test -s res://tests/run_tests.gd

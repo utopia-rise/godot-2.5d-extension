@@ -4,29 +4,20 @@
 #ifdef TOOLS_ENABLED
 
 #include "command_emitter.h"
-#include "node/isometric_map.h"
 
-#include <core/input/input_event.h>
+#include <classes/input_event_mouse.hpp>
 
-namespace editor {
-    namespace commands {
-        namespace emitters {
-            static constexpr const char fill_plan_action_name[]{"Fill plan with elements"};
+namespace editor::commands::emitters {
+    // Fill bucket: a click fills the free area of the editor plane connected to the clicked cell.
+    class FillPlanCommandEmitter : public CommandEmitter<FillPlanCommandEmitter, InputEventMouse> {
+        friend class CommandEmitter<FillPlanCommandEmitter, InputEventMouse>;
 
-            class FillPlanCommandEmitter : public CommandEmitter<FillPlanCommandEmitter, InputEventMouse, node::IsometricMap, fill_plan_action_name> {
-                friend class CommandEmitter<FillPlanCommandEmitter, InputEventMouse, node::IsometricMap, fill_plan_action_name>;
+        Vector<Ref<Command>> from_gui_input_to_command(const Ref<InputEventMouse>& p_event);
 
-            public:
-                FillPlanCommandEmitter() = default;
-                ~FillPlanCommandEmitter() = default;
-
-            private:
-                Vector<Ref<Command<node::IsometricMap>>> from_gui_input_to_command_impl([[maybe_unused]] Ref<InputEventMouse> p_event);
-            };
-        }
-    }
-}
+    public:
+        FillPlanCommandEmitter() : CommandEmitter("Fill plan with elements") {}
+    };
+}// namespace editor::commands::emitters
 
 #endif
-
 #endif// ISOMETRIC_MAPS_FILL_PLAN_COMMAND_EMITTER_H

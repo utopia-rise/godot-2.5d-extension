@@ -1,46 +1,34 @@
-#ifndef ISOMETRIC_MAPS_ISOMETRIC_API_H
-#define ISOMETRIC_MAPS_ISOMETRIC_API_H
+#ifndef ISOMETRIC_MAPS_ISOMETRIC_CONFIGURATION_H
+#define ISOMETRIC_MAPS_ISOMETRIC_CONFIGURATION_H
 
-#include "core/io/resource.h"
-#include "core/templates/rid.h"
+#include <classes/resource.hpp>
 
 namespace resource {
+    using namespace godot;
 
     class IsometricConfiguration : public Resource {
         GDCLASS(IsometricConfiguration, Resource)
 
-    private:
         int tile_width;
         int angle;
         float topological_margin;
-        RID self;
 
     public:
         IsometricConfiguration();
+        ~IsometricConfiguration() override = default;
 
-        ~IsometricConfiguration() override;
-
-    public:
         int get_angle() const;
-
-        void set_angle(int agl);
+        void set_angle(int p_angle);
 
         int get_tile_width() const;
-
-        void set_tile_width(int t_w);
+        void set_tile_width(int p_tile_width);
 
         float get_topological_margin() const;
-
-        void set_topological_margin(float margin);
-
-        RID get_rid() const override;
-
-        static IsometricConfiguration* get_instance(const RID rid);
+        void set_topological_margin(float p_margin);
 
     protected:
         static void _bind_methods();
     };
-
 }// namespace resource
 
-#endif// ISOMETRIC_MAPS_ISOMETRIC_API_H
+#endif// ISOMETRIC_MAPS_ISOMETRIC_CONFIGURATION_H

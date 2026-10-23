@@ -1,18 +1,27 @@
 #ifndef ISOMETRIC_MAPS_ISOMETRIC_POSITIONABLE_H
 #define ISOMETRIC_MAPS_ISOMETRIC_POSITIONABLE_H
 
+#include <classes/collision_object3d.hpp>
+#include <classes/node2d.hpp>
+#include <variant/node_path.hpp>
+#include <variant/rid.hpp>
+#include <variant/vector3.hpp>
+
+#ifdef TOOLS_ENABLED
 #include "editor/outline_data.h"
-#include "scene/2d/node_2d.h"
-#include "scene/3d/collision_object_3d.h"
-#include "scene/3d/mesh_instance_3d.h"
-#include "scene/resources/primitive_meshes.h"
+
+#include <classes/box_mesh.hpp>
+#include <classes/mesh_instance3d.hpp>
+#include <classes/standard_material3d.hpp>
+#endif
 
 namespace node {
+    using namespace godot;
+
     class IsometricPositionable : public Node2D {
         GDCLASS(IsometricPositionable, Node2D);
 
     public:
-
         enum class SlopeType {
             NONE = 0,
             LEFT = 1,
@@ -23,26 +32,30 @@ namespace node {
         };
 
     private:
-        Vector3 size;
+        Vector3 size = Vector3(1, 1, 1);
         Vector3 local_position;
-        int depth;
+        int depth = 1;
 
         SlopeType slope_type = SlopeType::NONE;
 
         RID self;
-        bool is_dynamic;
+        bool is_dynamic = false;
         NodePath collision_object_node_path;
-        CollisionObject3D* collision_object;
+        CollisionObject3D* collision_object = nullptr;
 
         void set_global_position_3d(const Vector3& p_position);
 
         void _rebind_collision_object_position() const;
 
+        void on_ready();
+        void on_physics_process();
+        void on_exit_tree();
+
 #ifdef TOOLS_ENABLED
         bool debug_view = false;
         editor::OutlineData outline_data;
 
-        MeshInstance3D* debug_mesh_instance_3d;
+        MeshInstance3D* debug_mesh_instance_3d = nullptr;
         Ref<BoxMesh> debug_mesh;
         Ref<StandardMaterial3D> debug_mesh_material;
 
@@ -51,55 +64,49 @@ namespace node {
 
     protected:
         RID world;
-        bool world_owner;
-        bool is_container;
+        bool world_owner = false;
+        bool is_container = false;
 
         void update_position();
 
-        void _notification(int notif);
+        virtual void on_enter_tree();
 
-        virtual void _enter_tree();
-        void _ready();
-        void _physics_process();
-        void _exit_tree();
+        void _notification(int p_what);
+        static void _bind_methods();
 
     public:
-        IsometricPositionable();
+        IsometricPositionable() = default;
         ~IsometricPositionable() override;
 
         Vector3 get_local_position_3d() const;
-        void set_local_position_3d(Vector3 p_local);
+        void set_local_position_3d(const Vector3& p_local);
         Vector3 get_global_position_3d() const;
-        virtual Vector3 get_size() const;
-        virtual void set_size(Vector3 p_size);
+        Vector3 get_size() const;
+        virtual void set_size(const Vector3& p_size);
         int get_depth() const;
         void set_depth(int p_depth);
-        RID get_space_RID() const;
+        RID get_space_rid() const;
         SlopeType get_slope_type() const;
         bool get_is_dynamic() const;
         void set_is_dynamic(bool p_is_dynamic);
-        const NodePath& get_collision_object_node_path() const;
+        NodePath get_collision_object_node_path() const;
         void set_collision_object_node_path(const NodePath& p_node_path);
-        RID get_rid() const;
+        RID get_isometric_element_rid() const;
 
 #ifdef TOOLS_ENABLED
-
         void set_debug_view(bool p_debug);
 
         editor::OutlineData& get_outline_data();
         void update_debug_mesh_color(const Color& p_color) const;
 #endif
+
 #ifdef DEBUG_ENABLED
-        virtual void set_debug_modulate(const Color &p_modulate) const;
+        static const Color CONFLICT_MODULATE_COLOR;
 
-        static Color CONFLICT_MODULATE_COLOR;
+        // Tints the node in debug builds, such as a tile overlapping another one in a map.
+        virtual void set_debug_modulate(const Color& p_modulate);
 #endif
-
-    protected:
-        static void _bind_methods();
     };
 }// namespace node
-
-MAKE_ENUM_TYPE_INFO(node::IsometricPositionable::SlopeType)
 
 #endif// ISOMETRIC_MAPS_ISOMETRIC_POSITIONABLE_H

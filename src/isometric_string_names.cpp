@@ -1,7 +1,16 @@
 #include "isometric_string_names.h"
 
+#include <core/memory.hpp>
+
+using namespace godot;
+
 IsometricStringNames* IsometricStringNames::singleton = nullptr;
 
-IsometricStringNames::IsometricStringNames() :
-  debug_group_name(StaticCString::create("isometric_debug_view")),
-  size_changed_signal(StaticCString::create("size_changed")) {}
+void IsometricStringNames::create() {
+    singleton = memnew(IsometricStringNames);
+}
+
+void IsometricStringNames::free() {
+    memdelete(singleton);
+    singleton = nullptr;
+}

@@ -1,87 +1,50 @@
 #ifndef ISOMETRIC_MAPS_COMMAND_H
 #define ISOMETRIC_MAPS_COMMAND_H
 
-
 #ifdef TOOLS_ENABLED
 
-#include "core/object/ref_counted.h"
-#include "editor/editor_undo_redo_manager.h"
-#include "scene/main/node.h"
+#include "node/isometric_map.h"
 
-constexpr const char* undo_or_redo_triggered { "undo_or_redo_triggered" };
+#include <classes/ref_counted.hpp>
+#include <classes/undo_redo.hpp>
+#include <templates/vector.hpp>
+#include <variant/callable.hpp>
 
-namespace editor {
-    namespace commands {
+namespace editor::commands {
+    using namespace godot;
 
-        template<class TContextNode>
-        class Command : public RefCounted {
-            GDCLASS(Command<TContextNode>, RefCounted)
+    // An undoable edit of an IsometricMap. Commands are registered in the editor's undo/redo history, which calls
+    // their bound redo and undo methods.
+    class Command : public RefCounted {
+        GDCLASS(Command, RefCounted)
 
-        protected:
-            TContextNode* context_node;
+    protected:
+        node::IsometricMap* context_node = nullptr;
 
-            static void _bind_methods();
+        static void _bind_methods();
 
-        public:
-            virtual void redo();
-            virtual void undo();
-            virtual void set_context_node(TContextNode* p_context_node);
-            void add_hook(const Callable& p_hook);
+    public:
+        virtual void redo();
+        virtual void undo();
+        virtual void set_context_node(node::IsometricMap* p_context_node);
+        void add_hook(const Callable& p_hook);
 
-            void append_to_undoredo();
+        // Registers the commands as one action of the editor history, then runs them. Null commands are skipped and no
+        // action is created when none remains.
+        static void commit_as_action(
+          const Vector<Ref<Command>>& p_commands,
+          node::IsometricMap* p_context,
+          const String& p_action_title,
+          UndoRedo::MergeMode p_merge_mode = UndoRedo::MERGE_DISABLE,
+          bool p_backward_undo_ops = false
+        );
 
-            Command();
-            ~Command() override = default;
+    private:
+        Vector<Callable> hooks;
 
-        private:
-            Vector<Callable> hooks;
-
-            void _execute_hooks() const;
-        };
-
-        template<class TContextNode>
-        void Command<TContextNode>::redo() {
-            _execute_hooks();
-        }
-
-        template<class TContextNode>
-        void Command<TContextNode>::undo() {
-            _execute_hooks();
-        }
-
-        template<class TContextNode>
-        void Command<TContextNode>::append_to_undoredo() {
-            EditorUndoRedoManager::get_singleton()->add_do_method(this, "redo");
-            EditorUndoRedoManager::get_singleton()->add_undo_method(this, "undo");
-        }
-
-        template<class TContextNode>
-        void Command<TContextNode>::set_context_node(TContextNode* p_context_node) {
-            context_node = p_context_node;
-        }
-
-        template<class TContextNode>
-        void Command<TContextNode>::add_hook(const Callable& p_hook) {
-            hooks.append(p_hook);
-        }
-
-        template<class TContextNode>
-        void Command<TContextNode>::_execute_hooks() const {
-            for (const Callable& hook : hooks) {
-                hook.call();
-            }
-        }
-
-        template<class TContextNode>
-        Command<TContextNode>::Command() : context_node(nullptr) {}
-
-        template<class TContextNode>
-        void Command<TContextNode>::_bind_methods() {
-            ClassDB::bind_method(D_METHOD("redo"), &Command<TContextNode>::redo);
-            ClassDB::bind_method(D_METHOD("undo"), &Command<TContextNode>::undo);
-        }
-    }// namespace commands
-}// namespace editor
+        void _execute_hooks() const;
+    };
+}// namespace editor::commands
 
 #endif
 #endif// ISOMETRIC_MAPS_COMMAND_H

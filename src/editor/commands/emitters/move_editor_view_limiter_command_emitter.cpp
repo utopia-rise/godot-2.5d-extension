@@ -3,173 +3,112 @@
 #include "move_editor_view_limiter_command_emitter.h"
 
 #include "constants.h"
+#include "editor/commands/composite_command.h"
 #include "editor/commands/move_editor_plane_command.h"
 #include "editor/commands/set_positionable_visibility_command.h"
 #include "editor/isometric_editor_plugin.h"
 
+#include <classes/input.hpp>
+
+#ifdef MACOS_ENABLED
+#include <classes/time.hpp>
+#endif
+
+using namespace godot;
 using namespace editor::commands::emitters;
 
-MoveEditorViewLimiterCommandEmitter::MoveEditorViewLimiterCommandEmitter() :
-  CommandEmitter()
-#ifdef OSX_ENABLED
-  ,
-  cumulative_scroll_delta(),
-  cumulative_scroll_last_time()
-#endif
-{
-}
+static constexpr Key LIMITER_AXIS_KEYS[] = {KEY_1, KEY_2, KEY_3};
 
-Vector<Ref<editor::commands::Command<node::IsometricMap>>> MoveEditorViewLimiterCommandEmitter::from_gui_input_to_command_impl(Ref<ScrollInputEvent> p_event) {
-    Vector<Ref<editor::commands::Command<node::IsometricMap>>> commands;
+Vector<Ref<editor::commands::Command>> MoveEditorViewLimiterCommandEmitter::from_gui_input_to_command(const Ref<ScrollInputEvent>& p_event) {
+    Vector<Ref<Command>> commands;
 
     if (!_is_event_activated(p_event) || !p_event->is_command_or_control_pressed()) { return commands; }
 
-    EventMotion motion {_is_event_forward(p_event)};
-
+    EventMotion motion = _get_event_motion(p_event);
     if (motion == EventMotion::NONE) { return commands; }
 
-    EditorPlane::PlaneType plane_type;
-    int plane_max_position;
-    const Vector3& map_size {IsometricEditorPlugin::get_instance()->get_selected_map()->get_size()};
-    if (Input::get_singleton()->is_key_pressed(Key::KEY_1)) {
-        plane_type = p_event->is_shift_pressed() ? EditorPlane::PlaneType::X_MIN_VIEW_LIMITER : EditorPlane::PlaneType::X_MAX_VIEW_LIMITER;
-        plane_max_position = map_size.x;
-    } else if (Input::get_singleton()->is_key_pressed(Key::KEY_2)) {
-        plane_type = p_event->is_shift_pressed() ? EditorPlane::PlaneType::Y_MIN_VIEW_LIMITER : EditorPlane::PlaneType::Y_MAX_VIEW_LIMITER;
-        plane_max_position = map_size.y;
-    } else if (Input::get_singleton()->is_key_pressed(Key::KEY_3)) {
-        plane_type = p_event->is_shift_pressed() ? EditorPlane::PlaneType::Z_MIN_VIEW_LIMITER : EditorPlane::PlaneType::Z_MAX_VIEW_LIMITER;
-        plane_max_position = map_size.z;
-    } else {
-        return commands;
+    int limiter_axis = -1;
+    for (int axis = Vector3::AXIS_X; axis <= Vector3::AXIS_Z; ++axis) {
+        if (Input::get_singleton()->is_key_pressed(LIMITER_AXIS_KEYS[axis])) {
+            limiter_axis = axis;
+            break;
+        }
     }
+    if (limiter_axis < 0) { return commands; }
 
-    bool should_set_inf_on_max {false};
-    if (plane_type == EditorPlane::PlaneType::X_MAX_VIEW_LIMITER || plane_type == EditorPlane::PlaneType::Y_MAX_VIEW_LIMITER || plane_type == EditorPlane::PlaneType::Z_MAX_VIEW_LIMITER) {
-        should_set_inf_on_max = true;
-    }
+    IsometricEditorPlugin* isometric_editor_plugin = IsometricEditorPlugin::get_instance();
+    node::IsometricMap* map = isometric_editor_plugin->get_selected_map();
+    Vector3 map_size = map->get_size();
 
-    node::IsometricMap* map {IsometricEditorPlugin::get_instance()->get_selected_map()};
+    // Shift moves the min limiter, the max limiter otherwise; a max limiter pushed past the map end means "no limit".
+    bool is_max_limiter = !p_event->is_shift_pressed();
+    EditorPlane::PlaneType plane_type = is_max_limiter
+                                        ? EditorPlane::get_max_view_limiter(static_cast<Vector3::Axis>(limiter_axis))
+                                        : EditorPlane::get_min_view_limiter(static_cast<Vector3::Axis>(limiter_axis));
+    auto plane_max_position = static_cast<int>(map_size[limiter_axis]);
 
-    const EditorPlane plane {IsometricEditorPlugin::get_instance()->get_editor_plane_for_map(map, plane_type)};
+    const EditorPlane& plane = isometric_editor_plugin->get_editor_plane_for_map(map, plane_type);
+    auto editor_plane_position = static_cast<real_t>(plane.get_position());
 
-    auto editor_plane_position {static_cast<real_t>(plane.get_position())};
-
-    bool is_forward {motion == EventMotion::FORWARD};
+    bool is_forward = motion == EventMotion::FORWARD;
     if ((editor_plane_position == 0 && !is_forward) || (editor_plane_position >= plane_max_position && is_forward)) {
         return commands;
     }
+    editor_plane_position = MIN(editor_plane_position, static_cast<real_t>(plane_max_position));
 
-    if (editor_plane_position >= plane_max_position) { editor_plane_position = plane_max_position; }
+    int min_limits[3];
+    int max_limits[3];
+    for (int axis = Vector3::AXIS_X; axis <= Vector3::AXIS_Z; ++axis) {
+        auto map_size_on_axis = static_cast<int>(map_size[axis]);
+        min_limits[axis] = CLAMP(
+          isometric_editor_plugin
+            ->get_editor_plane_for_map(map, EditorPlane::get_min_view_limiter(static_cast<Vector3::Axis>(axis)))
+            .get_position(),
+          0,
+          map_size_on_axis
+        );
+        max_limits[axis] = CLAMP(
+          isometric_editor_plugin
+            ->get_editor_plane_for_map(map, EditorPlane::get_max_view_limiter(static_cast<Vector3::Axis>(axis)))
+            .get_position(),
+          0,
+          map_size_on_axis
+        );
+    }
 
-    const int x_min_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::X_MIN_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.x)
-    )};
-    const int x_max_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::X_MAX_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.x)
-    )};
-    const int y_min_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::Y_MIN_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.y)
-    )};
-    const int y_max_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::Y_MAX_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.y)
-    )};
-    const int z_min_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::Z_MIN_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.z)
-    )};
-    const int z_max_view_limiter_position {CLAMP(
-      IsometricEditorPlugin::get_instance()
-        ->get_editor_plane_for_map(map, EditorPlane::PlaneType::Z_MAX_VIEW_LIMITER)
-        .get_position(),
-      0,
-      static_cast<int>(map_size.z)
-    )};
-    real_t range_to_change_visibility_position {is_forward ? editor_plane_position : editor_plane_position - 1};
-    Ref<CompositeCommand<node::IsometricMap>> composite_command;
+    // The slice the limiter crosses changes visibility.
+    int plane_axis = plane.get_axis();
+    int first_axis = (plane_axis + 1) % 3;
+    int second_axis = (plane_axis + 2) % 3;
+    Vector3 position;
+    position[plane_axis] = is_forward ? editor_plane_position : editor_plane_position - 1;
+
+    Ref<CompositeCommand> composite_command;
     composite_command.instantiate();
-    switch (plane.get_axis()) {
-        case Vector3::AXIS_X: {
-            for (int y = y_min_view_limiter_position; y < y_max_view_limiter_position; ++y) {
-                for (int z = z_min_view_limiter_position; z < z_max_view_limiter_position; ++z) {
-                    Vector3 position {range_to_change_visibility_position, static_cast<real_t>(y), static_cast<real_t>(z)};
+    for (int first = min_limits[first_axis]; first < max_limits[first_axis]; ++first) {
+        for (int second = min_limits[second_axis]; second < max_limits[second_axis]; ++second) {
+            position[first_axis] = static_cast<real_t>(first);
+            position[second_axis] = static_cast<real_t>(second);
+            if (!map->get_positionable_at(position)) { continue; }
 
-                    if (!IsometricEditorPlugin::get_instance()->get_selected_map()->get_positionable_at(position)) {
-                        continue;
-                    }
-
-                    Ref<editor::commands::SetPositionableVisibilityCommand> visibility_command;
-                    visibility_command.instantiate();
-                    visibility_command->set_position(position);
-                    composite_command->append_command(visibility_command);
-                }
-            }
-        } break;
-        case Vector3::AXIS_Y:
-            for (int x = x_min_view_limiter_position; x < x_max_view_limiter_position; ++x) {
-                for (int z = z_min_view_limiter_position; z < z_max_view_limiter_position; ++z) {
-                    Vector3 position {static_cast<real_t>(x), range_to_change_visibility_position, static_cast<real_t>(z)};
-
-                    if (!IsometricEditorPlugin::get_instance()->get_selected_map()->get_positionable_at(position)) {
-                        continue;
-                    }
-
-                    Ref<editor::commands::SetPositionableVisibilityCommand> visibility_command;
-                    visibility_command.instantiate();
-                    visibility_command->set_position(position);
-                    composite_command->append_command(visibility_command);
-                }
-            }
-            break;
-        case Vector3::AXIS_Z:
-            for (int x = x_min_view_limiter_position; x < x_max_view_limiter_position; ++x) {
-                for (int y = y_min_view_limiter_position; y < y_max_view_limiter_position; ++y) {
-                    Vector3 position {static_cast<real_t>(x), static_cast<real_t>(y), range_to_change_visibility_position};
-
-                    if (!IsometricEditorPlugin::get_instance()->get_selected_map()->get_positionable_at(position)) {
-                        continue;
-                    }
-
-                    Ref<editor::commands::SetPositionableVisibilityCommand> visibility_command;
-                    visibility_command.instantiate();
-                    visibility_command->set_position(position);
-                    composite_command->append_command(visibility_command);
-                }
-            }
-            break;
+            Ref<SetPositionableVisibilityCommand> visibility_command;
+            visibility_command.instantiate();
+            visibility_command->set_position(position);
+            composite_command->append_command(visibility_command);
+        }
     }
     commands.push_back(composite_command);
 
-    int current_position {plane.get_position()};
-    int new_position {current_position};
-
+    int current_position = plane.get_position();
+    int new_position = current_position;
     if (is_forward) {
         if (current_position < plane_max_position) { new_position += 1; }
-        if (new_position >= plane_max_position && should_set_inf_on_max) { new_position = Constants::int_max; }
+        if (new_position >= plane_max_position && is_max_limiter) { new_position = Constants::int_max; }
     } else {
         new_position = CLAMP(current_position - 1, 0, plane_max_position - 1);
     }
 
-    Ref<editor::commands::MoveEditorPlaneCommand> move_command;
+    Ref<MoveEditorPlaneCommand> move_command;
     move_command.instantiate();
     move_command->set_plane_type(plane_type);
     move_command->set_old_position(current_position);
@@ -179,35 +118,36 @@ Vector<Ref<editor::commands::Command<node::IsometricMap>>> MoveEditorViewLimiter
     return commands;
 }
 
-bool MoveEditorViewLimiterCommandEmitter::_is_event_activated(Ref<ScrollInputEvent> p_event) {
-#ifdef OSX_ENABLED
+bool MoveEditorViewLimiterCommandEmitter::_is_event_activated([[maybe_unused]] const Ref<ScrollInputEvent>& p_event) {
+#ifdef MACOS_ENABLED
     return true;
 #else
     return p_event->is_pressed();
 #endif
 }
 
-MoveEditorViewLimiterCommandEmitter::EventMotion MoveEditorViewLimiterCommandEmitter::_is_event_forward(Ref<ScrollInputEvent> p_event) {
-#ifdef OSX_ENABLED
-    const real_t threshold {1.0};
+MoveEditorViewLimiterCommandEmitter::EventMotion MoveEditorViewLimiterCommandEmitter::_get_event_motion(const Ref<ScrollInputEvent>& p_event) {
+#ifdef MACOS_ENABLED
+    // Pan gestures arrive as many small deltas: they are accumulated into whole steps, and forgotten after a pause.
+    const real_t threshold = 1.0;
     cumulative_scroll_delta += p_event->get_delta().y;
-    uint64_t now {OS::get_singleton()->get_system_time_secs()};
+    uint64_t now = Time::get_singleton()->get_ticks_msec() / 1000;
     if (now - cumulative_scroll_last_time > 2) { cumulative_scroll_delta = 0; }
     cumulative_scroll_last_time = now;
     if (cumulative_scroll_delta >= threshold) {
         cumulative_scroll_delta = 0;
         return EventMotion::BACKWARD;
-    } else if (cumulative_scroll_delta < -threshold) {
+    }
+    if (cumulative_scroll_delta < -threshold) {
         cumulative_scroll_delta = 0;
         return EventMotion::FORWARD;
-    } else {
-        return EventMotion::NONE;
     }
+    return EventMotion::NONE;
 #else
     switch (p_event->get_button_index()) {
-        case MouseButton::WHEEL_UP:
+        case MOUSE_BUTTON_WHEEL_UP:
             return EventMotion::FORWARD;
-        case MouseButton::WHEEL_DOWN:
+        case MOUSE_BUTTON_WHEEL_DOWN:
             return EventMotion::BACKWARD;
         default:
             return EventMotion::NONE;

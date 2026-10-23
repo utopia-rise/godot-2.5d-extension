@@ -1,16 +1,20 @@
 #ifndef ISOMETRIC_MAPS_CHUNK_H
 #define ISOMETRIC_MAPS_CHUNK_H
 
-#include <core/templates/local_vector.h>
 #include "isometric_element.h"
 
-namespace data {
-    struct Chunk {
-        LocalVector<IsometricElement*> static_elements;
-        LocalVector<IsometricElement*> dynamic_elements;
+#include <templates/local_vector.hpp>
 
-        LocalVector<Chunk*> all_neighbors;
-        LocalVector<Chunk*> dynamic_sorting_neighbors;
+namespace data {
+    // A square of a space, on x and y, used to only compare elements with the ones nearby.
+    struct Chunk {
+        godot::LocalVector<IsometricElement*> static_elements;
+        godot::LocalVector<IsometricElement*> dynamic_elements;
+
+        // This chunk and its existing neighbors (up to 9).
+        godot::LocalVector<Chunk*> all_neighbors;
+        // This chunk and the neighbors it compares dynamic elements with: each pair of chunks is listed only once.
+        godot::LocalVector<Chunk*> dynamic_sorting_neighbors;
 
         Chunk() {
             all_neighbors.reserve(9);
@@ -19,6 +23,6 @@ namespace data {
             dynamic_elements.reserve(16);
         }
     };
-}
+}// namespace data
 
 #endif// ISOMETRIC_MAPS_CHUNK_H

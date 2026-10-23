@@ -2,17 +2,16 @@
 
 #include "change_layer_name_command.h"
 
+using namespace godot;
 using namespace editor::commands;
 
 void ChangeLayerNameCommand::redo() {
     context_node->set_layer_name(layer_id, new_layer_name);
-
     Command::redo();
 }
 
 void ChangeLayerNameCommand::undo() {
     context_node->set_layer_name(layer_id, former_layer_name);
-
     Command::undo();
 }
 

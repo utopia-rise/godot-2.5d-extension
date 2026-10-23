@@ -1,32 +1,29 @@
 #ifndef ISOMETRIC_MAPS_ADD_LAYER_COMMAND_H
 #define ISOMETRIC_MAPS_ADD_LAYER_COMMAND_H
 
-
 #ifdef TOOLS_ENABLED
 
 #include "command.h"
-#include "node/isometric_map.h"
 
-namespace editor {
-    namespace commands {
-        class AddLayerCommand : public Command<node::IsometricMap> {
-        public:
-            void redo() override;
-            void undo() override;
+namespace editor::commands {
+    class AddLayerCommand : public Command {
+        GDCLASS(AddLayerCommand, Command)
 
-            void set_layer_id(uint32_t p_layer_id);
-            void set_layer_name(const String& p_layer_name);
+    protected:
+        static void _bind_methods() {}
 
-            AddLayerCommand();
-            ~AddLayerCommand() override = default;
+    private:
+        String layer_name;
+        uint32_t layer_id = node::IsometricMap::NO_LAYER_ID;
 
-        private:
-            String layer_name;
-            uint32_t layer_id;
-        };
-    }
-}
+    public:
+        void redo() override;
+        void undo() override;
+
+        void set_layer_id(uint32_t p_layer_id);
+        void set_layer_name(const String& p_layer_name);
+    };
+}// namespace editor::commands
+
 #endif
-
-
-#endif //ISOMETRIC_MAPS_ADD_LAYER_COMMAND_H
+#endif// ISOMETRIC_MAPS_ADD_LAYER_COMMAND_H

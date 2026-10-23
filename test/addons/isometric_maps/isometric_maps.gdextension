@@ -1,0 +1,27 @@
+[configuration]
+
+entry_symbol = "isometric_maps_library_init"
+compatibility_minimum = "4.7"
+reloadable = false
+
+[libraries]
+
+windows.editor.x86_64 = "res://addons/isometric_maps/libs/windows/libisometric_maps.windows.editor.x86_64.dll"
+windows.debug.x86_64 = "res://addons/isometric_maps/libs/windows/libisometric_maps.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/isometric_maps/libs/windows/libisometric_maps.windows.template_release.x86_64.dll"
+
+linux.editor.x86_64 = "res://addons/isometric_maps/libs/linux/libisometric_maps.linux.editor.x86_64.so"
+linux.debug.x86_64 = "res://addons/isometric_maps/libs/linux/libisometric_maps.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/isometric_maps/libs/linux/libisometric_maps.linux.template_release.x86_64.so"
+
+macos.editor = "res://addons/isometric_maps/libs/macos/isometric_maps.macos.editor.framework"
+macos.debug = "res://addons/isometric_maps/libs/macos/isometric_maps.macos.template_debug.framework"
+macos.release = "res://addons/isometric_maps/libs/macos/isometric_maps.macos.template_release.framework"
+
+android.debug.arm64 = "res://addons/isometric_maps/libs/android/libisometric_maps.android.template_debug.arm64.so"
+android.release.arm64 = "res://addons/isometric_maps/libs/android/libisometric_maps.android.template_release.arm64.so"
+android.debug.x86_64 = "res://addons/isometric_maps/libs/android/libisometric_maps.android.template_debug.x86_64.so"
+android.release.x86_64 = "res://addons/isometric_maps/libs/android/libisometric_maps.android.template_release.x86_64.so"
+
+ios.debug = "res://addons/isometric_maps/libs/ios/libisometric_maps.ios.template_debug.xcframework"
+ios.release = "res://addons/isometric_maps/libs/ios/libisometric_maps.ios.template_release.xcframework"
